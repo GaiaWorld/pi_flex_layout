@@ -8,6 +8,7 @@ description = "High performance & cross-platform Flexbox implementation"
 readme = "README.md"
 keywords = ["cross-platform", "layout", "flexbox", "pi"]
 categories = ["gui"]
+license = "MIT OR Apache-2.0"
 
 [badges]
 circle-ci = { repository = "vislyhq/stretch", branch = "master" }
