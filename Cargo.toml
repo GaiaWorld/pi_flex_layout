@@ -36,11 +36,11 @@ criterion = "0.2"
 lto = true
 panic = 'abort'
 
-[[bench]]
-name = "generated"
-path = "benches/generated/mod.rs"
-harness = false
+# [[bench]]
+# name = "generated"
+# path = "benches/generated/mod.rs"
+# harness = false
 
-[[bench]]
-name = "complex"
-harness = false
+# [[bench]]
+# name = "benches/complex.rs"
+# harness = false
