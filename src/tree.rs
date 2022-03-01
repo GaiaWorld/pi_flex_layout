@@ -33,9 +33,9 @@ use std::ops::{Index, IndexMut};
 // use map::vecmap::VecMap;
 
 use crate::calc::*;
-use crate::dirty::*;
-use crate::idtree::{IdTree as IdTree1, Node as Node1};
 use crate::style::*;
+use pi_dirty::*;
+use pi_idtree::{IdTree as IdTree1, Node as Node1};
 
 type IdTree = IdTree1<u32>;
 type Node = Node1<u32>;
@@ -61,7 +61,7 @@ pub fn compute<T>(dirty: &mut LayerDirty<usize>, tree: &IdTree, i_nodes: &mut im
 	if dirty.count() > 0 {
 		debug_println!("compute: {:?}", dirty);
 	}
-	for (id, layer) in dirty.iter() {
+	for (id, _layer) in dirty.iter() {
 		let (node, i_node) = match tree.get(*id) {
 			Some(n) => (n,  &mut i_nodes[*id]),
 			_ => continue,
@@ -85,11 +85,16 @@ pub fn compute<T>(dirty: &mut LayerDirty<usize>, tree: &IdTree, i_nodes: &mut im
 		};
 		let is_text = i_node.text.len() > 0;
 		if state.abs() {
+			let i_node = &i_nodes[*id];
+			let mut parent = node.parent(); 
+			while parent > 0 && i_nodes[parent].state.vnode() {
+				parent = tree[parent].parent();
+			}; 
 			// 如果节点是绝对定位， 则重新计算自身的布局数据
 			let (parent_size, flex) = if !i_node.state.self_rect() {
 				// 如果节点自身不是绝对区域，则需要获得父容器的内容大小
-				let layout = &mut layouts[node.parent()];
-				let style = &other_styles[node.parent()];
+				let layout = &mut layouts[parent];
+				let style = &other_styles[parent];
 				(layout.get_content_size(), ContainerStyle::new(style))
 			} else {
 				((0.0, 0.0), ContainerStyle{justify_content: JustifyContent::FlexStart, align_content: AlignContent::FlexStart, flex_direction: FlexDirection::Row, flex_wrap: FlexWrap::NoWrap, align_items: AlignItems::FlexStart})
@@ -140,7 +145,7 @@ fn set_parent(
     parent: usize,
     mark: bool,
 ) {
-    if parent == usize::max_value() {
+    if parent == 0 {
         return;
     }
 	let n = &tree[parent];
@@ -171,7 +176,7 @@ pub fn set_self_style(tree: &IdTree, i_nodes: &mut impl IndexMut<usize, Output =
 	let n = &tree[id];
 	let i_node = &mut i_nodes[id];
     let parent = set_self_dirty(dirty, id, n, i_node);
-    if parent < usize::max_value() {
+    if parent > 0 {
         mark_children_dirty(tree, i_nodes, dirty, parent)
     }
 }
@@ -304,7 +309,7 @@ fn set_self_dirty(dirty: &mut LayerDirty<usize>, id: usize, n: &Node, i_node: &m
 // }
 // 设置节点children_dirty脏, 如果节点是size=auto并且不是绝对定位,也不是虚拟节点, 则继续设置其父节点children_dirty脏
 pub fn mark_children_dirty(tree: &IdTree, i_nodes: &mut impl IndexMut<usize, Output = INode>, dirty: &mut LayerDirty<usize>, mut id: usize) {
-    while id < usize::max_value() {
+    while id > 0 {
 		let i_node = &mut i_nodes[id];
 
 		debug_println!("mark_children_dirty, id:{}, self_dirty:{}, size_defined:{}, abs:{}, vnode:{}, children_dirty: {}, parent:{}", id, i_node.state.self_dirty(),i_node.state.size_defined(), i_node.state.abs(), i_node.state.vnode(), i_node.state.children_dirty(), tree[id].parent());

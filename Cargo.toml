@@ -1,12 +1,12 @@
 [package]
-name = "pi_flex_layout_new"
+name = "pi_flex_layout_old"
 version = "0.2.2"
 authors = ["zmythleo <zmythleo@gmail.com>"]
 edition = "2018"
 include = ["src/**/*", "Cargo.toml"]
 description = "High performance & cross-platform Flexbox implementation"
 readme = "README.md"
-keywords = ["ios", "android", "cross-platform", "layout", "flexbox"]
+keywords = ["ios", "android", "cross-platform", "layout", "flexbox", "pi"]
 categories = ["gui"]
 license-file = "LICENSE"
 
@@ -17,13 +17,13 @@ maintenance = { status = "experimental" }
 [dependencies]
 libm = "0.1.2"
 paste = "0.1"
-pi_idtree_new = {path="../pi_idtree_new"}
-pi_dirty = {path="../pi_dirty"}
-pi_heap = {path="../pi_heap"}
-pi_map_new = {path="../pi_map_new"}
+pi_idtree = "0.1"
+pi_dirty = "0.1"
+pi_heap = "0.1"
+pi_map = "0.1"
 serde = { version = "1.0", features = ["derive"] }
-pi_debug_info = {path="../pi_debug_info" }
-pi_slab_new = {path="../pi_slab_new"}
+pi_debug_info = "0.1"
+pi_slab = "0.1"
 
 [features]
 default = ["std"]
@@ -44,6 +44,3 @@ harness = false
 [[bench]]
 name = "complex"
 harness = false
-
-# [workspace]
-# members = [ "scripts/gentest" ]
