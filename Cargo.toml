@@ -18,7 +18,6 @@ maintenance = { status = "experimental" }
 libm = "0.1.2"
 paste = "0.1"
 pi_null="0.1"
-pi_dirty = "0.1"
 pi_heap = "0.1"
 pi_map = "0.1"
 serde = { version = "1.0", features = ["derive"], option=true }
@@ -27,7 +26,10 @@ pi_slab = "0.1"
 pi_enum_default_macro="0.1"
 pi_slotmap={version="0.1", features = ["serde"]}
 # pi_slotmap_tree="0.2"
+# pi_dirty = "0.1"
 pi_slotmap_tree = { git = "https://github.com/GaiaWorld/pi_slotmap_tree.git" }
+pi_dirty = { git = "https://github.com/GaiaWorld/pi_dirty.git" }
+
 
 [features]
 default = ["std"]
