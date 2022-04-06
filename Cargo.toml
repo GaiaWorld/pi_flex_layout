@@ -1,6 +1,6 @@
 [package]
 name = "pi_flex_layout"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["zmythleo <zmythleo@gmail.com>"]
 edition = "2018"
 include = ["src/**/*", "Cargo.toml"]
@@ -17,13 +17,16 @@ maintenance = { status = "experimental" }
 [dependencies]
 libm = "0.1.2"
 paste = "0.1"
-pi_idtree = "0.1"
+pi_null="0.1"
 pi_dirty = "0.1"
 pi_heap = "0.1"
 pi_map = "0.1"
-serde = { version = "1.0", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"], option=true }
 pi_debug_info = "0.1"
 pi_slab = "0.1"
+pi_enum_default_macro="0.1"
+pi_slotmap_tree="0.2"
+pi_slotmap={version="0.1", features = ["serde"]}
 
 [features]
 default = ["std"]
@@ -35,6 +38,9 @@ criterion = "0.2"
 [profile.release]
 lto = true
 panic = 'abort'
+
+[patch.crates-io]
+pi_slotmap_tree = { path = "../pi_slotmap_tree" }
 
 # [[bench]]
 # name = "generated"

@@ -17,10 +17,11 @@ pub mod style;
 mod tree;
 mod calc;
 
-
-pub use crate::tree::*;
-pub use crate::geometry::*;
-pub use crate::number::*;
-pub use crate::style::*;
-pub use crate::tree::*;
-pub use crate::calc::*;
+pub mod prelude {
+	pub use crate::tree::*;
+	pub use crate::geometry::*;
+	pub use crate::number::*;
+	pub use crate::style::*;
+	pub use crate::tree::*;
+	pub use crate::calc::*;
+}

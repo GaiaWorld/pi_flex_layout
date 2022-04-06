@@ -1,10 +1,11 @@
 #[cfg(not(feature = "std"))]
 use alloc::boxed::Box;
+use pi_enum_default_macro::EnumDefault;
 
 use crate::geometry::{Rect, Size};
 use crate::number::Number;
 
-#[derive(Copy, Clone, PartialEq, PartialOrd, Debug, Serialize, Deserialize)]
+#[derive(EnumDefault, Copy, Clone, PartialEq, PartialOrd, Debug, Serialize, Deserialize)]
 pub enum AlignItems {
     FlexStart,
     FlexEnd,
@@ -13,13 +14,7 @@ pub enum AlignItems {
     Stretch,
 }
 
-impl Default for AlignItems {
-    fn default() -> AlignItems {
-        AlignItems::FlexStart
-    }
-}
-
-#[derive(Copy, Clone, PartialEq, PartialOrd, Debug, Serialize, Deserialize)]
+#[derive(EnumDefault, Copy, Clone, PartialEq, PartialOrd, Debug, Serialize, Deserialize)]
 pub enum AlignSelf {
     Auto,
     FlexStart,
@@ -27,12 +22,6 @@ pub enum AlignSelf {
     Center,
     Baseline,
     Stretch,
-}
-
-impl Default for AlignSelf {
-    fn default() -> AlignSelf {
-        AlignSelf::Auto
-    }
 }
 
 #[derive(Copy, Clone, PartialEq, PartialOrd, Debug, Serialize, Deserialize)]
@@ -213,8 +202,8 @@ impl Dimension {
 impl Default for Rect<Dimension> {
     fn default() -> Rect<Dimension> {
         Rect {
-            start: Default::default(),
-            end: Default::default(),
+            left: Default::default(),
+            right: Default::default(),
             top: Default::default(),
             bottom: Default::default(),
         }
@@ -230,121 +219,181 @@ impl Default for Size<Dimension> {
     }
 }
 
-#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
-pub struct RectStyle {
-    pub margin: Rect<Dimension>,
-    pub size: Size<Dimension>,
+pub trait FlexLayoutStyle {
+	fn width(&self) -> Dimension;
+	fn height(&self) -> Dimension;
+
+	fn margin_top(&self) -> Dimension;
+	fn margin_right(&self) -> Dimension;
+	fn margin_bottom(&self) -> Dimension;
+	fn margin_left(&self) -> Dimension;
+	
+	fn padding_top(&self) -> Dimension;
+	fn padding_right(&self) -> Dimension;
+	fn padding_bottom(&self) -> Dimension;
+	fn padding_left(&self) -> Dimension;
+
+	fn position_top(&self) -> Dimension;
+	fn position_right(&self) -> Dimension;
+	fn position_bottom(&self) -> Dimension;
+	fn position_left(&self) -> Dimension;
+
+	fn border_top(&self) -> Dimension;
+	fn border_right(&self) -> Dimension;
+	fn border_bottom(&self) -> Dimension;
+	fn border_left(&self) -> Dimension;
+
+	fn display(&self) -> Display;
+    fn position_type(&self) -> PositionType;
+    fn direction(&self) -> Direction;
+
+    fn flex_direction(&self) -> FlexDirection;
+    fn flex_wrap(&self) -> FlexWrap;
+    fn justify_content(&self) -> JustifyContent;
+    fn align_items(&self) -> AlignItems;
+    fn align_content(&self) -> AlignContent;
+
+    fn order(&self) -> isize;
+    fn flex_basis(&self) -> Dimension;
+    fn flex_grow(&self) -> f32;
+    fn flex_shrink(&self) -> f32;
+    fn align_self(&self) -> AlignSelf;
+
+    fn overflow(&self) -> Overflow;
+    fn min_width(&self) -> Dimension;
+	fn min_height(&self) -> Dimension;
+	fn max_width(&self) -> Dimension;
+	fn max_height(&self) -> Dimension;
+    fn aspect_ratio(&self) -> Number;
 }
 
-impl Default for RectStyle {
-    fn default() -> RectStyle {
-        RectStyle {
-            margin: Default::default(), // dom默认为undefined， 性能考虑，这里默认0.0
-            size: Default::default(),
-        }
-    }
-}
-
-#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
-pub struct OtherStyle {
-    pub display: Display,
-    pub position_type: PositionType,
-    pub direction: Direction,
-
-    pub flex_direction: FlexDirection,
-    pub flex_wrap: FlexWrap,
-    pub justify_content: JustifyContent,
-    pub align_items: AlignItems,
-    pub align_content: AlignContent,
-
-    pub order: isize,
-    pub flex_basis: Dimension,
-    pub flex_grow: f32,
-    pub flex_shrink: f32,
-    pub align_self: AlignSelf,
-
-    pub overflow: Overflow,
-    pub position: Rect<Dimension>,
-    pub padding: Rect<Dimension>,
-    pub border: Rect<Dimension>,
-    pub min_size: Size<Dimension>,
-    pub max_size: Size<Dimension>,
-    pub aspect_ratio: Number,
 
 
-}
+// ContainerStyle {
+// 	flex_direction: self.
+// }
 
-impl Default for OtherStyle {
-    fn default() -> OtherStyle {
-        OtherStyle {
-            display: Default::default(),
-            position_type: Default::default(),
-            direction: Default::default(),
-            flex_direction: Default::default(),
-            flex_wrap: Default::default(),
-            overflow: Default::default(),
-            align_items: Default::default(), // dom默认为stretch， 性能考虑，这里默认flex_start
-            align_self: Default::default(),
-            align_content: Default::default(),
-            justify_content: Default::default(),
-            position: Default::default(),
-            padding: Default::default(),
-            border: Default::default(),
-            flex_grow: 0.0,
-            flex_shrink: 0.0,  // dom默认为1.0， 性能考虑，这里默认0.0
-            order: 0,
-            flex_basis: Dimension::Auto,
-            min_size: Default::default(),
-            max_size: Default::default(),
-            aspect_ratio: Default::default(),
-        }
-    }
-}
+// flex_direction: s.flex_direction,
+// flex_wrap: s.flex_wrap,
+// justify_content: s.justify_content,
+// align_items: s.align_items,
+// align_content: s.align_content,
 
-impl OtherStyle {
-    // pub(crate) fn min_main_size(&self, direction: FlexDirection) -> Dimension {
-    //     match direction {
-    //         FlexDirection::Row | FlexDirection::RowReverse => self.min_size.width,
-    //         FlexDirection::Column | FlexDirection::ColumnReverse => self.min_size.height,
-    //     }
-    // }
+// #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
+// pub struct RectStyle {
+//     pub margin: Rect<Dimension>,
+//     pub size: Size<Dimension>,
+// }
 
-    // pub(crate) fn max_main_size(&self, direction: FlexDirection) -> Dimension {
-    //     match direction {
-    //         FlexDirection::Row | FlexDirection::RowReverse => self.max_size.width,
-    //         FlexDirection::Column | FlexDirection::ColumnReverse => self.max_size.height,
-    //     }
-    // }
+// impl Default for RectStyle {
+//     fn default() -> RectStyle {
+//         RectStyle {
+//             margin: Default::default(), // dom默认为undefined， 性能考虑，这里默认0.0
+//             size: Default::default(),
+//         }
+//     }
+// }
+
+// #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
+// pub struct OtherStyle {
+//     pub display: Display,
+//     pub position_type: PositionType,
+//     pub direction: Direction,
+
+//     pub flex_direction: FlexDirection,
+//     pub flex_wrap: FlexWrap,
+//     pub justify_content: JustifyContent,
+//     pub align_items: AlignItems,
+//     pub align_content: AlignContent,
+
+//     pub order: isize,
+//     pub flex_basis: Dimension,
+//     pub flex_grow: f32,
+//     pub flex_shrink: f32,
+//     pub align_self: AlignSelf,
+
+//     pub overflow: Overflow,
+//     pub position: Rect<Dimension>,
+//     pub padding: Rect<Dimension>,
+//     pub border: Rect<Dimension>,
+//     pub min_size: Size<Dimension>,
+//     pub max_size: Size<Dimension>,
+//     pub aspect_ratio: Number,
+
+
+// }
+
+// impl Default for OtherStyle {
+//     fn default() -> OtherStyle {
+//         OtherStyle {
+//             display: Default::default(),
+//             position_type: Default::default(),
+//             direction: Default::default(),
+//             flex_direction: Default::default(),
+//             flex_wrap: Default::default(),
+//             overflow: Default::default(),
+//             align_items: Default::default(), // dom默认为stretch， 性能考虑，这里默认flex_start
+//             align_self: Default::default(),
+//             align_content: Default::default(),
+//             justify_content: Default::default(),
+//             position: Default::default(),
+//             padding: Default::default(),
+//             border: Default::default(),
+//             flex_grow: 0.0,
+//             flex_shrink: 0.0,  // dom默认为1.0， 性能考虑，这里默认0.0
+//             order: 0,
+//             flex_basis: Dimension::Auto,
+//             min_size: Default::default(),
+//             max_size: Default::default(),
+//             aspect_ratio: Default::default(),
+//         }
+//     }
+// }
+
+// impl OtherStyle {
+//     // pub(crate) fn min_main_size(&self, direction: FlexDirection) -> Dimension {
+//     //     match direction {
+//     //         FlexDirection::Row | FlexDirection::RowReverse => self.min_size.width,
+//     //         FlexDirection::Column | FlexDirection::ColumnReverse => self.min_size.height,
+//     //     }
+//     // }
+
+//     // pub(crate) fn max_main_size(&self, direction: FlexDirection) -> Dimension {
+//     //     match direction {
+//     //         FlexDirection::Row | FlexDirection::RowReverse => self.max_size.width,
+//     //         FlexDirection::Column | FlexDirection::ColumnReverse => self.max_size.height,
+//     //     }
+//     // }
 
     
-    // pub(crate) fn min_cross_size(&self, direction: FlexDirection) -> Dimension {
-    //     match direction {
-    //         FlexDirection::Row | FlexDirection::RowReverse => self.min_size.height,
-    //         FlexDirection::Column | FlexDirection::ColumnReverse => self.min_size.width,
-    //     }
-    // }
+//     // pub(crate) fn min_cross_size(&self, direction: FlexDirection) -> Dimension {
+//     //     match direction {
+//     //         FlexDirection::Row | FlexDirection::RowReverse => self.min_size.height,
+//     //         FlexDirection::Column | FlexDirection::ColumnReverse => self.min_size.width,
+//     //     }
+//     // }
 
-    // pub(crate) fn max_cross_size(&self, direction: FlexDirection) -> Dimension {
-    //     match direction {
-    //         FlexDirection::Row | FlexDirection::RowReverse => self.max_size.height,
-    //         FlexDirection::Column | FlexDirection::ColumnReverse => self.max_size.width,
-    //     }
-    // }
+//     // pub(crate) fn max_cross_size(&self, direction: FlexDirection) -> Dimension {
+//     //     match direction {
+//     //         FlexDirection::Row | FlexDirection::RowReverse => self.max_size.height,
+//     //         FlexDirection::Column | FlexDirection::ColumnReverse => self.max_size.width,
+//     //     }
+//     // }
 
-    // pub(crate) fn align_self(&self, parent: &OtherStyle) -> AlignSelf {
-    //     if self.align_self == AlignSelf::Auto {
-    //         match parent.align_items {
-    //             AlignItems::FlexStart => AlignSelf::FlexStart,
-    //             AlignItems::FlexEnd => AlignSelf::FlexEnd,
-    //             AlignItems::Center => AlignSelf::Center,
-    //             AlignItems::Baseline => AlignSelf::Baseline,
-    //             AlignItems::Stretch => AlignSelf::Stretch,
-    //         }
-    //     } else {
-    //         self.align_self
-    //     }
-    // }
-}
+//     // pub(crate) fn align_self(&self, parent: &OtherStyle) -> AlignSelf {
+//     //     if self.align_self == AlignSelf::Auto {
+//     //         match parent.align_items {
+//     //             AlignItems::FlexStart => AlignSelf::FlexStart,
+//     //             AlignItems::FlexEnd => AlignSelf::FlexEnd,
+//     //             AlignItems::Center => AlignSelf::Center,
+//     //             AlignItems::Baseline => AlignSelf::Baseline,
+//     //             AlignItems::Stretch => AlignSelf::Stretch,
+//     //         }
+//     //     } else {
+//     //         self.align_self
+//     //     }
+//     // }
+// }
 
 // #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 // pub struct Style {

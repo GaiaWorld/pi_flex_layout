@@ -6,8 +6,8 @@ use crate::number::Number;
 /// 矩形， 采用start end top bottom定义矩形
 #[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Rect<T> {
-    pub start: T,
-    pub end: T,
+    pub left: T,
+    pub right: T,
     pub top: T,
     pub bottom: T,
 }
