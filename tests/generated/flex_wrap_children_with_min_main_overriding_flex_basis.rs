@@ -1,6 +1,6 @@
 fn print(count: &mut usize, id: usize, layout: &layout::tree::LayoutR) {
     *count += 1;
-    debug_println!("result: {:?} {:?} {:?}", *count, id, layout);
+   unsafe{debugit::debugit!("result: {:?} {:?} {:?}", *count, id, layout);
 }
 #[test]
 fn flex_wrap_children_with_min_main_overriding_flex_basis() {

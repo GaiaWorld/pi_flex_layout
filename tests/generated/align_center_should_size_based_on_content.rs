@@ -1,6 +1,6 @@
 fn print(count: &mut usize, id: usize, layout: &layout::tree::LayoutR) {
     *count += 1;
-    debug_println!("result: {:?} {:?} {:?}", *count, id, layout);
+   unsafe{debugit::debugit!("result: {:?} {:?} {:?}", *count, id, layout);
 }
 #[test]
 fn align_center_should_size_based_on_content() {
