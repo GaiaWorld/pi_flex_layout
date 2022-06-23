@@ -4,7 +4,7 @@ use crate::number::Number;
 // use crate::style;
 
 /// 矩形， 采用start end top bottom定义矩形
-#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize, Hash)]
 pub struct Rect<T> {
     pub left: T,
     pub right: T,
@@ -91,7 +91,7 @@ pub struct Rect<T> {
 // }
 
 /// 大小
-#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize, Hash)]
 pub struct Size<T> {
     pub width: T,
     pub height: T,

@@ -221,7 +221,6 @@ pub struct CharNode {
     pub pos: Rect<f32>,         // 位置
     pub count: usize,   // 字符id或单词的字符数量 ch==char::from(0)时，表示单词容器节点，此时ch_id_or_count表示该节点中的字符数量
 	pub ch_id: DefaultKey,
-    pub base_width: f32,         // font_size 为32 的字符宽度
 	pub char_i: isize,// 字符在整个节点中的索引
 	pub context_id: isize, // 如果是多字符文字中的某个字符，则存在一个上下文索引
 }
@@ -245,7 +244,6 @@ impl Default for CharNode {
 			},
 			count: 0,
 			ch_id: DefaultKey::null(),
-			base_width: 0.0,
 			char_i: -1,
 			context_id: -1,
 		}
@@ -1021,8 +1019,8 @@ where
 				cnode.pos = Rect {
 					left: width.0,
 					top: height.0,
-					right: 0.0, // TODO
-					bottom: 0.0,
+					right: width.0 + width.1, // TODO
+					bottom: height.0 + height.1,
 				};
 				return;
 			}
