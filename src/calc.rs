@@ -1749,6 +1749,9 @@ where
         cross_end: f32,
         normal: bool,
     ) {
+		if count == 0 {
+			return;
+		}
        out_any!(debug_println, 
             "{:?}single_line: normal:{:?} content_size:{:?}, cross:{:?} start_end:{:?} main:{:?}",
             ppp(),
