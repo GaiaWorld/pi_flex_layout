@@ -49,7 +49,7 @@ where
 	R: GetMut<K, Target = LR> {
 
 	pub fn set_display(&mut self, id: K, dirty: &mut LayerDirty<K>) {
-		out_any!(debug_println, "set_display=====================, id:{}", id);
+		out_any!(debug_println, "set_display=====================, id:{:?}", id);
 		let style = self.0.style.get(id);
 		let (layer, parent) = (
 			self.0.tree.get_layer(id).map_or(0, |l| {l}),
@@ -70,14 +70,15 @@ where
 	
 	pub fn compute(&mut self, dirty: &mut LayerDirty<K>) {
 		if dirty.count() > 0 {
-			out_any!(debug_println, "compute: {:?}", dirty);
+			out_any!(debug_println, "compute: {:?}", &dirty);
 		}
 		for (id, _layer) in dirty.iter() {
+			// println_any!("layout======{:?}, {:?}", id, _layer);
 			let (_node, i_node) = match self.0.tree.get_layer(*id) {
 				Some(n) => (n,  &mut self.0.i_nodes[*id]),
 				_ => continue,
 			};
-			out_any!(debug_println, "    calc: {:?} children_dirty:{:?} self_dirty:{:?} children_abs:{:?} children_rect:{:?} children_no_align_self:{:?} children_index:{:?} vnode:{:?} abs:{:?} size_defined:{:?}, layer:{}", id, i_node.state.children_dirty(), i_node.state.self_dirty(), i_node.state.children_abs(), i_node.state.children_rect(), i_node.state.children_no_align_self(), i_node.state.children_index(), i_node.state.vnode(), i_node.state.abs(), i_node.state.size_defined(), layer);
+			out_any!(debug_println, "    calc: {:?} children_dirty:{:?} self_dirty:{:?} children_abs:{:?} children_rect:{:?} children_no_align_self:{:?} children_index:{:?} vnode:{:?} abs:{:?} size_defined:{:?}, layer:{:?}", id, i_node.state.children_dirty(), i_node.state.self_dirty(), i_node.state.children_abs(), i_node.state.children_rect(), i_node.state.children_no_align_self(), i_node.state.children_index(), i_node.state.vnode(), i_node.state.abs(), i_node.state.size_defined(), _layer);
 			let state = i_node.state;
 			if !(state.self_dirty() || state.children_dirty()) {
 				continue;
@@ -169,7 +170,7 @@ where
 			// 如果是隐藏
 			return;
 		}
-		out_any!(debug_println, "set_self_style=====================, id:{}", id);
+		out_any!(debug_println, "set_self_style=====================, id:{:?}", id);
 		let (layer, parent) = (
 			self.0.tree.get_layer(id).map_or(0, |l| {l}),
 			self.0.tree.get_up(id).map_or(K::null(), |up| {up.parent()}),
@@ -188,7 +189,7 @@ where
 			// 如果是隐藏
 			return;
 		}
-		out_any!(debug_println, "set_children_style=====================, id:{}", id);
+		out_any!(debug_println, "set_children_style=====================, id:{:?}", id);
 		self.mark_children_dirty(dirty, id)
 	}
 	// 设置一般样式， 设父节点脏
@@ -201,7 +202,7 @@ where
 		let parent = self.0.tree.get_up(id).map_or(K::null(), |up| {up.parent()});
 		let i_node = &self.0.i_nodes[id];
 		let state = i_node.state;
-		out_any!(debug_println, "set_normal_style=====================, id:{} state:{:?}", id, i_node.state);
+		out_any!(debug_println, "set_normal_style=====================, id:{:?} state:{:?}", id, i_node.state);
 		self.set_parent(dirty, state, parent, true, style.align_self(), style.order());
 	}
 	// 设置区域 pos margin size
@@ -237,7 +238,7 @@ where
 		} else {
 			true
 		};
-		out_any!(debug_println, "set rect dirty=====================, id:{} state:{:?}", id, i_node.state);
+		out_any!(debug_println, "set rect dirty=====================, id:{:?} state:{:?}", id, i_node.state);
 		let state = i_node.state;
 		self.set_parent(dirty, state, parent, mark, style.align_self(), style.order());
 	}
@@ -262,7 +263,7 @@ where
 		while !id.is_null() {
 			let i_node = &mut self.0.i_nodes[id];
 	
-			out_any!(debug_println, "mark_children_dirty, id:{}, self_dirty:{}, size_defined:{}, abs:{}, vnode:{}, children_dirty: {}", id, i_node.state.self_dirty(),i_node.state.size_defined(), i_node.state.abs(), i_node.state.vnode(), i_node.state.children_dirty());
+			out_any!(debug_println, "mark_children_dirty, id:{:?}, self_dirty:{:?}, size_defined:{:?}, abs:{:?}, vnode:{:?}, children_dirty: {:?}", id, i_node.state.self_dirty(),i_node.state.size_defined(), i_node.state.abs(), i_node.state.vnode(), i_node.state.children_dirty());
 	
 			if i_node.state.children_dirty() {
 				break;
@@ -321,7 +322,7 @@ where
 	}
 	// 设置节点自身脏, 如果节点是size=auto并且不是绝对定位, 则返回父节点id，需要继续设置其父节点脏
 	fn set_self_dirty(dirty: &mut LayerDirty<K>, id: K, parent: K, layer: usize, i_node: &mut INode) -> K {
-		out_any!(debug_println, "set_self_dirty, id: {}, self_dirty:{}, children_dirty:{:?}", id, i_node.state.self_dirty(), i_node.state.children_dirty());
+		out_any!(debug_println, "set_self_dirty, id: {:?}, self_dirty:{:?}, children_dirty:{:?}", id, i_node.state.self_dirty(), i_node.state.children_dirty());
 		if !i_node.state.vnode() && !i_node.state.self_dirty() {
 			i_node.state.self_dirty_true();
 			if layer > 0 {

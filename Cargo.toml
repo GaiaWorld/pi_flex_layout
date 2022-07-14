@@ -17,6 +17,7 @@ maintenance = { status = "experimental" }
 [dependencies]
 libm = "0.1.2"
 paste = "0.1"
+log = "0.4"
 pi_null="0.1"
 pi_heap = "0.1"
 pi_map = "0.1"

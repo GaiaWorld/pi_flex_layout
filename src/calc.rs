@@ -419,7 +419,7 @@ impl<K: Null + Clone> Cache<K> {
         line: &mut LineInfo,
         mut char_index: usize,
     ) {
-		out_any!(debug_println, "text_layout, id:{}", id);
+		out_any!(debug_println, "text_layout, id:{:?}", &id);
         let len = text.len();
         while char_index < len {
             let r = &text[char_index];
@@ -759,7 +759,7 @@ impl<K> Temp<K> {
 impl LineInfo {
     // 添加到数组中，计算当前行的grow shrink 是否折行及折几行
     fn add<K>(&mut self, main: f32, info: &RelNodeInfo<K>) {
-		out_any!(debug_println, "add, main: {:?}, {:?}, self.item: {:?}", main, info, self.item);
+		out_any!(debug_println, "add, main: {:?}, {:?}, self.item: {:?}", main, info, &self.item);
         // 浮点误差判断是否折行
         if (self.item.count > 0 && self.item.main + info.main + info.margin_main - main > EPSILON) || info.breakline {
 			self.cross += self.item.cross;
@@ -849,7 +849,7 @@ where
 			(a2, a1)
 		};
 
-		out_any!(debug_println, "abs_layout, id:{} size:{:?} position:{:?}", id, (style.width(), style.height()), style.position());
+		out_any!(debug_println, "abs_layout, id:{:?} size:{:?} position:{:?}", id, (style.width(), style.height()), style.position());
 		let mut w = calc_rect(
 			style.position_left(),
 			style.position_right(),
@@ -876,7 +876,7 @@ where
 			calc_number(style.min_height(), parent_size.1),
 			calc_number(style.max_height(), parent_size.1),
 		);
-		out_any!(debug_println, "abs_layout11, id:{} w:{:?}, h:{:?}", id, w, h);
+		out_any!(debug_println, "abs_layout11, id:{:?} w:{:?}, h:{:?}", id, w, h);
 		if w.0 == Number::Undefined || h.0 == Number::Undefined {
 			// 根据子节点计算大小
 			let direction = style.direction();
@@ -911,7 +911,7 @@ where
 				&border,
 				&padding,
 			);
-			out_any!(debug_println, "calc_rect: id: {}, hh:{:?}", id, hh);
+			out_any!(debug_println, "calc_rect: id: {:?}, hh:{:?}", id, hh);
 			// 再次计算区域
 			w = calc_rect(
 				pos.left,
@@ -1022,6 +1022,12 @@ where
 					right: width.0 + width.1, // TODO
 					bottom: height.0 + height.1,
 				};
+				out_any!(debug_println,"set_layout text: {:?}, {:?}", Rect {
+					left: width.0,
+					top: height.0,
+					right: width.0 + width.1, // TODO
+					bottom: height.0 + height.1,
+				}, cnode.ch);
 				return;
 			}
 			_ => (),
@@ -1168,6 +1174,8 @@ where
             id,
             is_notify
         );
+
+		
         if is_text {
             let i_node = &mut self.i_nodes[id];
             cache.text_layout(id, &mut i_node.text, &mut line, 0);
@@ -1326,7 +1334,7 @@ where
             // flex布局时， 如果子节点的宽高未定义，则根据子节点的布局进行计算。如果子节点的宽高为百分比，并且父节点对应宽高未定义，则为0
             let w = calc_number(style.width(), cache.size1.0);
 			let h = calc_number(style.height(), cache.size1.1);
-			out_any!(debug_println, "id: {}, parent_size:{:?}", id, cache.size1);
+			out_any!(debug_println, "id: {:?}, parent_size:{:?}", id, cache.size1);
             let basis = style.flex_basis();
             let (main_d, cross_d) = cache
                 .temp
@@ -1348,7 +1356,7 @@ where
                 (style.margin_left(), style.margin_right()),
                 (style.margin_top(), style.margin_bottom()),
 			);
-			out_any!(debug_println, "main1,id:{}, main1:{:?}, main_d: {:?}, size: {:?}, min_main: {:?}, max_main: {:?}", id, cache.main_value, main_d, (style.width(), style.height()), min_main, max_main);
+			out_any!(debug_println, "main1,id:{:?}, main1:{:?}, main_d: {:?}, size: {:?}, min_main: {:?}, max_main: {:?}", id, cache.main_value, main_d, (style.width(), style.height()), min_main, max_main);
             let mut info = RelNodeInfo {
                 id,
                 grow: style.flex_grow(),
@@ -1400,7 +1408,7 @@ where
                 let w = calc_content_size(w, border.left, border.right, padding.left, padding.right);
                 let h =
                     calc_content_size(h, border.top, border.bottom, padding.top, padding.bottom);
-                let mut cache = Cache::new(
+                let mut cache_new = Cache::new(
                     flex,
                     Size {
                         width: w,
@@ -1412,12 +1420,12 @@ where
 					calc_content_size(max_width, border.left, border.right, padding.left, padding.right),
 					calc_content_size(max_height, border.top, border.bottom, padding.top, padding.bottom)
 				);
-					out_any!(debug_println, "cache, main_line: {:?}, id: {}", cache.main_line, id);
+					out_any!(debug_println, "cache, main_line: {:?}, id: {:?}", cache_new.main_line, id);
 				// cache.main_line = 
 				// max_calc(w, max_width);
 				// max_calc(h, max_height);
                 let (ww, hh, r) = self.auto_layout(
-					&mut cache,
+					&mut cache_new,
                     fix,
                     id,
                     is_text,
@@ -1494,7 +1502,7 @@ where
 		size: (f32, f32),
 	) {
 		out_any!(debug_println, 
-			"{:?}set_layout: pos:{:?} size:{:?} id:{:?} head:{:?} tail:{:?} children_dirty:{} self_dirty:{} children_rect:{} children_abs:{}",
+			"{:?}set_layout: pos:{:?} size:{:?} id:{:?} head:{:?} tail:{:?} children_dirty:{:?} self_dirty:{:?} children_rect:{:?} children_abs:{:?}",
 			ppp(),
 			pos,
 			size,
@@ -1506,6 +1514,7 @@ where
 			state.children_rect(),
 			state.children_abs()
 		);
+
 		// 设置布局的值
 		let mut layout = self.layout_map.get_mut(id);
 		let r = if state.self_dirty()
@@ -1579,7 +1588,7 @@ where
        out_any!(debug_println, 
             "{:?}layout: style:{:?} size:{:?} main_cross:{:?}",
             ppp(),
-            temp.flex,
+            &temp.flex,
             size,
             (main, cross)
         );
@@ -1721,7 +1730,7 @@ where
                 normal,
             );
 		}
-		out_any!(debug_println, "single_line!!, item: {:?}, split: {:?}, pos: {:?}, cross:{:?}", line.item, split, pos, line.cross);
+		out_any!(debug_println, "single_line!!, item: {:?}, split: {:?}, pos: {:?}, cross:{:?}", &line.item, split, pos, line.cross);
         let (cross_start, cross_end) = temp.multi_calc(line.item.cross, split, &mut pos);
         self.temp_single_line(
 			temp,
@@ -2375,7 +2384,7 @@ fn calc_margin(
                 }
                 _ => {
                    out_any!(debug_println, 
-                        "calc_margin auto=============end: {}, start:{}, size:{}",
+                        "calc_margin auto=============end: {:?}, start:{:?}, size:{:?}",
                         end,
                         start,
                         size
