@@ -27,11 +27,8 @@ pi_print_any = "0.1"
 pi_slab = "0.1"
 pi_enum_default_macro="0.1"
 pi_slotmap={version="0.1", features = ["serde"]}
-# pi_slotmap_tree="0.2"
-# pi_dirty = "0.1"
-pi_slotmap_tree = { git = "https://github.com/GaiaWorld/pi_slotmap_tree.git" }
-pi_dirty = { git = "https://github.com/GaiaWorld/pi_dirty.git" }
-
+pi_slotmap_tree="0.2"
+pi_dirty = "0.1"
 debugit="0.2.0"
 
 [features]
@@ -45,8 +42,13 @@ criterion = "0.2"
 lto = true
 panic = 'abort'
 
-# [patch.crates-io]
-# pi_slotmap_tree = { path = "../pi_slotmap_tree" }
+[[test]]
+name = "test_generated"
+path = "tests/generated/mod.rs"
+harness = false
+
+[workspace]
+members = [ "scripts/gentest" ]
 
 # [[bench]]
 # name = "generated"

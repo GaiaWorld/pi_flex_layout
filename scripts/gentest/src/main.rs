@@ -20,7 +20,7 @@ fn main() {
     let fixtures_root = repo_root.join("test_fixtures");
     let fixtures = fs::read_dir(fixtures_root).unwrap();
 
-    info!("reading test fixtures from disk");
+    println!("reading test fixtures from disk");
     let mut fixtures: Vec<_> = fixtures
         .into_iter()
         .filter_map(|a| a.ok())
@@ -40,7 +40,7 @@ fn main() {
         .collect();
     fixtures.sort_unstable_by_key(|f| f.0.clone());
 
-    info!("starting webdriver instance");
+    println!("starting webdriver instance");
     let webdriver_url = "http://localhost:4444";
     let mut webdriver_handle = Command::new("chromedriver")
         .arg("--port=4444")
@@ -58,11 +58,12 @@ fn main() {
     let pb = ProgressBar::new(fixtures.len() as u64);
     let (test_descs_sink, mut test_descs) = channel();
 
-    info!("spawning webdriver client and collecting test descriptions");
+    println!("spawning webdriver client and collecting test descriptions");
     tokio::run(
         Client::with_capabilities(webdriver_url, caps.clone())
             .map_err(|e| Error::from(e))
             .and_then(move |client| {
+                println!("tokio=============");
                 futures::stream::iter_ok(pb.wrap_iter(fixtures.into_iter()))
                     .and_then(move |(name, fixture_path)| {
                         pb.set_message(&name);
@@ -70,7 +71,7 @@ fn main() {
                     })
                     .collect()
                     .map(move |descs| {
-                        info!("finished collecting descriptions, sending them back to main");
+                        println!("finished collecting descriptions, sending them back to main");
                         let _ = test_descs_sink.send(descs);
                     })
             })
@@ -79,22 +80,22 @@ fn main() {
             }),
     );
 
-    info!("killing webdriver instance...");
+    println!("killing webdriver instance...");
     webdriver_handle.kill().unwrap();
 
-    info!("collecting test descriptions from async runtime...");
+    println!("collecting test descriptions from async runtime...");
     let test_descs = loop {
         if let Ok(Some(descs)) = test_descs.try_recv() {
             break descs;
         }
     };
 
-    info!("generating test sources and concatenating...");
+    println!("generating test sources and concatenating...");
 
     let bench_descs: Vec<_> = test_descs
         .iter()
         .map(|(name, description)| {
-            debug!("generating bench contents for {}", &name);
+            println!("generating bench contents for {}", &name);
             (name.clone(), generate_bench(description))
         })
         .collect();
@@ -102,7 +103,7 @@ fn main() {
     let test_descs: Vec<_> = test_descs
         .iter()
         .map(|(name, description)| {
-            debug!("generating test contents for {}", &name);
+            println!("generating test contents for {}", &name);
             (name.clone(), generate_test(name, description))
         })
         .collect();
@@ -126,14 +127,14 @@ fn main() {
     for (name, bench_body) in bench_descs {
         let mut bench_filename = repo_root.join("benches").join("generated").join(&name);
         bench_filename.set_extension("rs");
-        debug!("writing {} to disk...", &name);
+        println!("writing {:?} to disk...", &bench_filename);
         fs::write(bench_filename, bench_body.to_string()).unwrap();
     }
 
     for (name, test_body) in test_descs {
         let mut test_filename = repo_root.join("tests").join("generated").join(&name);
         test_filename.set_extension("rs");
-        debug!("writing {} to disk...", &name);
+        println!("writing {:?} to disk...", &test_filename);
         fs::write(test_filename, test_body.to_string()).unwrap();
     }
 
@@ -152,7 +153,15 @@ fn main() {
         criterion_main!(benches);
     );
 
-    info!("writing generated test file to disk...");
+    let test_mods = quote!(
+
+        #test_mods
+
+        fn main() {
+        }
+    );
+
+    println!("writing generated test file to disk...");
     fs::write(
         repo_root.join("benches").join("generated").join("mod.rs"),
         bench_mods.to_string(),
@@ -164,12 +173,14 @@ fn main() {
     )
     .unwrap();
 
-    info!("formatting the source directory");
-    Command::new("cargo")
+    println!("formatting the source directory");
+    if let Err(r) = Command::new("cargo")
         .arg("fmt")
         .current_dir(repo_root)
         .status()
-        .unwrap();
+    {
+        // println!("formatting the source directory fail: {:?}", r);
+    }
 }
 
 fn test_root_element(
@@ -191,7 +202,7 @@ fn test_root_element(
                 .find(Locator::Css("#test-root"))
                 .map_err(|e| e.context("finding #test-root"))
                 .and_then(|mut root| {
-                    root.attr("__stretch_description__")
+                    root.prop("__stretch_description__")
                         .map_err(|e| e.context("retrieving layout description from test root"))
                         .and_then(|description_string| {
                             json::parse(&description_string.unwrap())
@@ -205,31 +216,31 @@ fn test_root_element(
 
 fn generate_bench(description: &json::JsonValue) -> TokenStream {
     let node_description = generate_node(1, &mut 2, "node", &description);
-
+    let index1 = Ident::new(&format!("node_{}", 1), Span::call_site());
     quote!(
-        fn print(count: &mut usize, id: usize, layout: &layout::tree::LayoutR) {
-            *count += 1;
-           unsafe{debugit::debugit!("result: {:?} {:?} {:?}", *count, id, layout);
+        fn print<T: pi_flex_layout::prelude::LayoutR + std::fmt::Debug>(_arg: &mut (), id: pi_slotmap_tree::TreeKey, layout: &T) {
+           unsafe{debugit::debugit!("result: {:?} {:?}", id, layout)};
         }
         pub fn compute() {
-            let mut layout_tree = layout::tree::LayoutTree::default();
-            layout_tree.insert(1, 0, 0, layout::idtree::InsertType::Back, layout::style::Style{
-                position_type: layout::style::PositionType::Absolute,
-                size: layout::geometry::Size{
-                    width: layout::style::Dimension::Points(1920.0),
-                    height: layout::style::Dimension::Points(1024.0),
+            let mut layout_tree = pi_flex_layout::prelude::LayoutTree::default();
+            let #index1 = layout_tree.create_node();
+            layout_tree.insert(#index1, <pi_slotmap_tree::TreeKey as  pi_null::Null>::null(), <pi_slotmap_tree::TreeKey as  pi_null::Null>::null(), pi_slotmap_tree::InsertType::Back,pi_flex_layout::prelude::Style{
+                position_type: pi_flex_layout::prelude::PositionType::Absolute,
+                size: pi_flex_layout::prelude::Size{
+                    width: pi_flex_layout::prelude::Dimension::Points(1920.0),
+                    height: pi_flex_layout::prelude::Dimension::Points(1024.0),
                 },
-                position: layout::geometry::Rect{
-                    start: layout::style::Dimension::Points(0.0),
-                    end: layout::style::Dimension::Points(0.0),
-                    top: layout::style::Dimension::Points(0.0),
-                    bottom: layout::style::Dimension::Points(0.0),
+                position: pi_flex_layout::prelude::Rect{
+                    left: pi_flex_layout::prelude::Dimension::Points(0.0),
+                    right: pi_flex_layout::prelude::Dimension::Points(0.0),
+                    top: pi_flex_layout::prelude::Dimension::Points(0.0),
+                    bottom: pi_flex_layout::prelude::Dimension::Points(0.0),
                 },
-                margin: layout::geometry::Rect{
-                    start: layout::style::Dimension::Points(0.0),
-                    end: layout::style::Dimension::Points(0.0),
-                    top: layout::style::Dimension::Points(0.0),
-                    bottom: layout::style::Dimension::Points(0.0),
+                margin: pi_flex_layout::prelude::Rect{
+                    left: pi_flex_layout::prelude::Dimension::Points(0.0),
+                    right: pi_flex_layout::prelude::Dimension::Points(0.0),
+                    top: pi_flex_layout::prelude::Dimension::Points(0.0),
+                    bottom: pi_flex_layout::prelude::Dimension::Points(0.0),
                 },
                 ..Default::default()
             });
@@ -244,37 +255,50 @@ fn generate_test(name: impl AsRef<str>, description: &json::JsonValue) -> TokenS
     let name = Ident::new(name, Span::call_site());
     let node_description = generate_node(1, &mut 2, "node", &description);
     let assertions = generate_assertions(&mut 2, "node", &description);
+    let index1 = Ident::new(&format!("node_{}", 1), Span::call_site());
 
     quote!(
-        fn print(count: &mut usize, id: usize, layout: &layout::tree::LayoutR) {
-            *count += 1;
-           unsafe{debugit::debugit!("result: {:?} {:?} {:?}", *count, id, layout);
+        fn print<T: pi_flex_layout::prelude::LayoutR + std::fmt::Debug>(_arg: &mut (), id: pi_slotmap_tree::TreeKey, layout: &T) {
+            unsafe{debugit::debugit!("result: {:?} {:?}", id, layout)};
         }
         #[test]
         fn #name() {
-            let mut layout_tree = layout::tree::LayoutTree::default();
-            layout_tree.insert(1, 0, 0, layout::idtree::InsertType::Back, layout::style::Style{
-                position_type: layout::style::PositionType::Absolute,
-                size: layout::geometry::Size{
-                    width: layout::style::Dimension::Points(1920.0),
-                    height: layout::style::Dimension::Points(1024.0),
+            let mut layout_tree = pi_flex_layout::prelude::LayoutTree::default();
+            let #index1 = layout_tree.create_node();
+            layout_tree.insert(#index1,<pi_slotmap_tree::TreeKey as  pi_null::Null>::null(), <pi_slotmap_tree::TreeKey as  pi_null::Null>::null(), pi_slotmap_tree::InsertType::Back,pi_flex_layout::prelude::Style{
+                position_type: pi_flex_layout::prelude::PositionType::Absolute,
+                size: pi_flex_layout::prelude::Size{
+                    width: pi_flex_layout::prelude::Dimension::Points(1920.0),
+                    height: pi_flex_layout::prelude::Dimension::Points(1024.0),
                 },
-                position: layout::geometry::Rect{
-                    start: layout::style::Dimension::Points(0.0),
-                    end: layout::style::Dimension::Points(0.0),
-                    top: layout::style::Dimension::Points(0.0),
-                    bottom: layout::style::Dimension::Points(0.0),
+                position: pi_flex_layout::prelude::Rect{
+                    left: pi_flex_layout::prelude::Dimension::Points(0.0),
+                    right: pi_flex_layout::prelude::Dimension::Points(0.0),
+                    top: pi_flex_layout::prelude::Dimension::Points(0.0),
+                    bottom: pi_flex_layout::prelude::Dimension::Points(0.0),
                 },
-                margin: layout::geometry::Rect{
-                    start: layout::style::Dimension::Points(0.0),
-                    end: layout::style::Dimension::Points(0.0),
-                    top: layout::style::Dimension::Points(0.0),
-                    bottom: layout::style::Dimension::Points(0.0),
+                margin: pi_flex_layout::prelude::Rect{
+                    left: pi_flex_layout::prelude::Dimension::Points(0.0),
+                    right: pi_flex_layout::prelude::Dimension::Points(0.0),
+                    top: pi_flex_layout::prelude::Dimension::Points(0.0),
+                    bottom: pi_flex_layout::prelude::Dimension::Points(0.0),
                 },
                 ..Default::default()
             });
             #node_description
-            layout_tree.compute(print, &mut 0);
+
+            let c = pi_flex_layout::prelude::LayoutContext {
+                mark: std::marker::PhantomData,
+                i_nodes: &mut layout_tree.node_states,
+                layout_map: &mut pi_flex_layout::prelude::LayoutResults(&mut layout_tree.layout_map),
+                notify_arg: &mut (),
+                notify: print,
+                tree: &mut layout_tree.tree,
+                style: &mut layout_tree.style_map,
+            };
+            let mut layout = pi_flex_layout::prelude::Layout(c);
+
+            layout.compute(&mut layout_tree.dirty);
             #assertions
         }
     )
@@ -288,7 +312,7 @@ fn generate_assertions(index: &mut usize, ident: &str, node: &json::JsonValue) -
     let height = read_f32("height");
     let x = read_f32("x");
     let y = read_f32("y");
-    let index1 = syn::Index::from(*index);
+    let index1 = Ident::new(&format!("node_{}", *index), Span::call_site());
 
     let children = {
         let mut c = Vec::new();
@@ -313,9 +337,9 @@ fn generate_assertions(index: &mut usize, ident: &str, node: &json::JsonValue) -
 
     quote!(
         let layout = layout_tree.get_layout(#index1).unwrap();
-        assert_eq!((layout.rect.end - layout.rect.start).round(), #width);
+        assert_eq!((layout.rect.right - layout.rect.left).round(), #width);
         assert_eq!((layout.rect.bottom - layout.rect.top).round(), #height);
-        assert_eq!(layout.rect.start.round(), #x);
+        assert_eq!(layout.rect.left.round(), #x);
         assert_eq!(layout.rect.top.round(), #y);
 
         #children
@@ -332,7 +356,7 @@ fn generate_node(
 
     let display = match style["display"] {
         json::JsonValue::Short(ref value) => match value.as_ref() {
-            "none" => quote!(display: layout::style::Display::None,),
+            "none" => quote!(display: pi_flex_layout::prelude::Display::None,),
             _ => quote!(),
         },
         _ => quote!(),
@@ -340,7 +364,7 @@ fn generate_node(
 
     let position_type = match style["position_type"] {
         json::JsonValue::Short(ref value) => match value.as_ref() {
-            "absolute" => quote!(position_type: layout::style::PositionType::Absolute,),
+            "absolute" => quote!(position_type: pi_flex_layout::prelude::PositionType::Absolute,),
             _ => quote!(),
         },
         _ => quote!(),
@@ -348,8 +372,8 @@ fn generate_node(
 
     let direction = match style["direction"] {
         json::JsonValue::Short(ref value) => match value.as_ref() {
-            "rtl" => quote!(direction: layout::style::Direction::RTL,),
-            "ltr" => quote!(direction: layout::style::Direction::LTR,),
+            "rtl" => quote!(direction: pi_flex_layout::prelude::Direction::RTL,),
+            "ltr" => quote!(direction: pi_flex_layout::prelude::Direction::LTR,),
             _ => quote!(),
         },
         _ => quote!(),
@@ -357,10 +381,12 @@ fn generate_node(
 
     let flex_direction = match style["flexDirection"] {
         json::JsonValue::Short(ref value) => match value.as_ref() {
-            "row-reverse" => quote!(flex_direction: layout::style::FlexDirection::RowReverse,),
-            "column" => quote!(flex_direction: layout::style::FlexDirection::Column,),
+            "row-reverse" => {
+                quote!(flex_direction: pi_flex_layout::prelude::FlexDirection::RowReverse,)
+            }
+            "column" => quote!(flex_direction: pi_flex_layout::prelude::FlexDirection::Column,),
             "column-reverse" => {
-                quote!(flex_direction: layout::style::FlexDirection::ColumnReverse,)
+                quote!(flex_direction: pi_flex_layout::prelude::FlexDirection::ColumnReverse,)
             }
             _ => quote!(),
         },
@@ -369,8 +395,8 @@ fn generate_node(
 
     let flex_wrap = match style["flexWrap"] {
         json::JsonValue::Short(ref value) => match value.as_ref() {
-            "wrap" => quote!(flex_wrap: layout::style::FlexWrap::Wrap,),
-            "wrap-reverse" => quote!(flex_wrap: layout::style::FlexWrap::WrapReverse,),
+            "wrap" => quote!(flex_wrap: pi_flex_layout::prelude::FlexWrap::Wrap,),
+            "wrap-reverse" => quote!(flex_wrap: pi_flex_layout::prelude::FlexWrap::WrapReverse,),
             _ => quote!(),
         },
         _ => quote!(),
@@ -378,8 +404,8 @@ fn generate_node(
 
     let overflow = match style["overflow"] {
         json::JsonValue::Short(ref value) => match value.as_ref() {
-            "hidden" => quote!(overflow: layout::style::Overflow::Hidden,),
-            "scroll" => quote!(overflow: layout::style::Overflow::Scroll,),
+            "hidden" => quote!(overflow: pi_flex_layout::prelude::Overflow::Hidden,),
+            "scroll" => quote!(overflow: pi_flex_layout::prelude::Overflow::Scroll,),
             _ => quote!(),
         },
         _ => quote!(),
@@ -387,10 +413,11 @@ fn generate_node(
 
     let align_items = match style["alignItems"] {
         json::JsonValue::Short(ref value) => match value.as_ref() {
-            "flex-start" => quote!(align_items: layout::style::AlignItems::FlexStart,),
-            "flex-end" => quote!(align_items: layout::style::AlignItems::FlexEnd,),
-            "center" => quote!(align_items: layout::style::AlignItems::Center,),
-            "baseline" => quote!(align_items: layout::style::AlignItems::Baseline,),
+            "flex-start" => quote!(align_items: pi_flex_layout::prelude::AlignItems::FlexStart,),
+            "flex-end" => quote!(align_items: pi_flex_layout::prelude::AlignItems::FlexEnd,),
+            "center" => quote!(align_items: pi_flex_layout::prelude::AlignItems::Center,),
+            "baseline" => quote!(align_items: pi_flex_layout::prelude::AlignItems::Baseline,),
+            "stretch" => quote!(align_items: pi_flex_layout::prelude::AlignItems::Stretch,),
             _ => quote!(),
         },
         _ => quote!(),
@@ -398,11 +425,11 @@ fn generate_node(
 
     let align_self = match style["alignSelf"] {
         json::JsonValue::Short(ref value) => match value.as_ref() {
-            "flex-start" => quote!(align_self: layout::style::AlignSelf::FlexStart,),
-            "flex-end" => quote!(align_self: layout::style::AlignSelf::FlexEnd,),
-            "center" => quote!(align_self: layout::style::AlignSelf::Center,),
-            "baseline" => quote!(align_self: layout::style::AlignSelf::Baseline,),
-            "layout" => quote!(align_self: layout::style::AlignSelf::Stretch,),
+            "flex-start" => quote!(align_self: pi_flex_layout::prelude::AlignSelf::FlexStart,),
+            "flex-end" => quote!(align_self: pi_flex_layout::prelude::AlignSelf::FlexEnd,),
+            "center" => quote!(align_self: pi_flex_layout::prelude::AlignSelf::Center,),
+            "baseline" => quote!(align_self: pi_flex_layout::prelude::AlignSelf::Baseline,),
+            "stretch" => quote!(align_self: pi_flex_layout::prelude::AlignSelf::Stretch,),
             _ => quote!(),
         },
         _ => quote!(),
@@ -410,11 +437,20 @@ fn generate_node(
 
     let align_content = match style["alignContent"] {
         json::JsonValue::Short(ref value) => match value.as_ref() {
-            "flex-start" => quote!(align_content: layout::style::AlignContent::FlexStart,),
-            "flex-end" => quote!(align_content: layout::style::AlignContent::FlexEnd,),
-            "center" => quote!(align_content: layout::style::AlignContent::Center,),
-            "space-between" => quote!(align_content: layout::style::AlignContent::SpaceBetween,),
-            "space-around" => quote!(align_content: layout::style::AlignContent::SpaceAround,),
+            "flex-start" => {
+                quote!(align_content: pi_flex_layout::prelude::AlignContent::FlexStart,)
+            }
+            "flex-end" => quote!(align_content: pi_flex_layout::prelude::AlignContent::FlexEnd,),
+            "center" => quote!(align_content: pi_flex_layout::prelude::AlignContent::Center,),
+            "space-between" => {
+                quote!(align_content: pi_flex_layout::prelude::AlignContent::SpaceBetween,)
+            }
+            "space-around" => {
+                quote!(align_content: pi_flex_layout::prelude::AlignContent::SpaceAround,)
+            }
+            "stretch" => {
+                quote!(align_content: pi_flex_layout::prelude::AlignContent::Stretch,)
+            }
             _ => quote!(),
         },
         _ => quote!(),
@@ -422,13 +458,19 @@ fn generate_node(
 
     let justify_content = match style["justifyContent"] {
         json::JsonValue::Short(ref value) => match value.as_ref() {
-            "flex-end" => quote!(justify_content: layout::style::JustifyContent::FlexEnd,),
-            "center" => quote!(justify_content: layout::style::JustifyContent::Center,),
-            "space-between" => {
-                quote!(justify_content: layout::style::JustifyContent::SpaceBetween,)
+            "flex-end" => {
+                quote!(justify_content: pi_flex_layout::prelude::JustifyContent::FlexEnd,)
             }
-            "space-around" => quote!(justify_content: layout::style::JustifyContent::SpaceAround,),
-            "space-evenly" => quote!(justify_content: layout::style::JustifyContent::SpaceEvenly,),
+            "center" => quote!(justify_content: pi_flex_layout::prelude::JustifyContent::Center,),
+            "space-between" => {
+                quote!(justify_content: pi_flex_layout::prelude::JustifyContent::SpaceBetween,)
+            }
+            "space-around" => {
+                quote!(justify_content: pi_flex_layout::prelude::JustifyContent::SpaceAround,)
+            }
+            "space-evenly" => {
+                quote!(justify_content: pi_flex_layout::prelude::JustifyContent::SpaceEvenly,)
+            }
             _ => quote!(),
         },
         _ => quote!(),
@@ -498,7 +540,7 @@ fn generate_node(
     edges_quoted!(style, padding);
     edges_quoted!(style, position);
     edges_quoted!(style, border);
-    let index1 = syn::Index::from(*index);
+    let index1 = Ident::new(&format!("node_{}", *index), Span::call_site());
 
     let children_body = match node["children"] {
         json::JsonValue::Array(ref value) => {
@@ -520,16 +562,17 @@ fn generate_node(
         _ => quote!(),
     };
 
-    let parent = syn::Index::from(parent);
+    let parent = Ident::new(&format!("node_{}", parent), Span::call_site());
     // let ident = Ident::new(&format!("{}", ident), Span::call_site());
 
     quote!(
+        let #index1 = layout_tree.create_node();
         layout_tree.insert(
             #index1,
             #parent,
-            0,
-            layout::idtree::InsertType::Back,
-            layout::style::Style {
+            <pi_slotmap_tree::TreeKey as pi_null::Null>::null(),
+            pi_slotmap_tree::InsertType::Back,
+           pi_flex_layout::prelude::Style {
                 #display
                 #direction
                 #position_type
@@ -573,7 +616,7 @@ fn generate_size(size: &json::object::Object) -> TokenStream {
     dim_quoted!(size, width);
     dim_quoted!(size, height);
     quote!(
-        layout::geometry::Size {
+        pi_flex_layout::prelude::Size {
             #width #height
             ..Default::default()
         }
@@ -586,14 +629,14 @@ fn generate_dimension(dimen: &json::object::Object) -> TokenStream {
 
     match unit {
         json::JsonValue::Short(ref unit) => match unit.as_ref() {
-            "auto" => quote!(layout::style::Dimension::Auto),
+            "auto" => quote!(pi_flex_layout::prelude::Dimension::Auto),
             "points" => {
                 let value = value();
-                quote!(layout::style::Dimension::Points(#value))
+                quote!(pi_flex_layout::prelude::Dimension::Points(#value))
             }
             "percent" => {
                 let value = value();
-                quote!(layout::style::Dimension::Percent(#value))
+                quote!(pi_flex_layout::prelude::Dimension::Percent(#value))
             }
             _ => unreachable!(),
         },
@@ -602,13 +645,13 @@ fn generate_dimension(dimen: &json::object::Object) -> TokenStream {
 }
 
 fn generate_edges(dimen: &json::object::Object) -> TokenStream {
-    dim_quoted!(dimen, start);
-    dim_quoted!(dimen, end);
+    dim_quoted!(dimen, left);
+    dim_quoted!(dimen, right);
     dim_quoted!(dimen, top);
     dim_quoted!(dimen, bottom);
 
-    quote!(layout::geometry::Rect {
-        #start #end #top #bottom
+    quote!(pi_flex_layout::prelude::Rect {
+        #left #right #top #bottom
         ..Default::default()
     })
 }

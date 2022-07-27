@@ -41,7 +41,6 @@ impl Number {
     pub fn is_defined(self) -> bool {
         self != Number::Undefined
     }
-
 }
 
 // pub trait MinMax<In, Out> {

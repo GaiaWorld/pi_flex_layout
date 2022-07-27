@@ -197,7 +197,5 @@ use criterion::{criterion_group, criterion_main, Criterion};
 // criterion_group!(benches, stretch_benchmarks);
 // criterion_main!(benches);
 
-fn benches () {
-	
-}
+fn benches() {}
 criterion_main!(benches);

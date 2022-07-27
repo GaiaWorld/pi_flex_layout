@@ -56,7 +56,7 @@ impl Default for Direction {
 #[derive(Copy, Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum Display {
     Flex,
-	None,
+    None,
 }
 
 impl Default for Display {
@@ -147,7 +147,7 @@ impl Default for FlexWrap {
     }
 }
 
-#[derive(Copy, Clone, PartialEq, PartialOrd, Debug, Serialize, Deserialize)]
+#[derive(Copy, Clone, PartialEq, PartialOrd, Debug, Serialize, Deserialize, EnumDefault)]
 pub enum Dimension {
     Undefined,
     Auto,
@@ -155,11 +155,11 @@ pub enum Dimension {
     Percent(f32),
 }
 
-impl Default for Dimension {
-    fn default() -> Dimension {
-        Dimension::Points(0.0)
-    }
-}
+// impl Default for Dimension {
+//     fn default() -> Dimension {
+//         Dimension::Points(0.0)
+//     }
+// }
 
 impl Dimension {
     pub(crate) fn resolve_value(self, parent: f32) -> f32 {
@@ -220,30 +220,30 @@ impl Default for Size<Dimension> {
 }
 
 pub trait FlexLayoutStyle {
-	fn width(&self) -> Dimension;
-	fn height(&self) -> Dimension;
+    fn width(&self) -> Dimension;
+    fn height(&self) -> Dimension;
 
-	fn margin_top(&self) -> Dimension;
-	fn margin_right(&self) -> Dimension;
-	fn margin_bottom(&self) -> Dimension;
-	fn margin_left(&self) -> Dimension;
-	
-	fn padding_top(&self) -> Dimension;
-	fn padding_right(&self) -> Dimension;
-	fn padding_bottom(&self) -> Dimension;
-	fn padding_left(&self) -> Dimension;
+    fn margin_top(&self) -> Dimension;
+    fn margin_right(&self) -> Dimension;
+    fn margin_bottom(&self) -> Dimension;
+    fn margin_left(&self) -> Dimension;
 
-	fn position_top(&self) -> Dimension;
-	fn position_right(&self) -> Dimension;
-	fn position_bottom(&self) -> Dimension;
-	fn position_left(&self) -> Dimension;
+    fn padding_top(&self) -> Dimension;
+    fn padding_right(&self) -> Dimension;
+    fn padding_bottom(&self) -> Dimension;
+    fn padding_left(&self) -> Dimension;
 
-	fn border_top(&self) -> Dimension;
-	fn border_right(&self) -> Dimension;
-	fn border_bottom(&self) -> Dimension;
-	fn border_left(&self) -> Dimension;
+    fn position_top(&self) -> Dimension;
+    fn position_right(&self) -> Dimension;
+    fn position_bottom(&self) -> Dimension;
+    fn position_left(&self) -> Dimension;
 
-	fn display(&self) -> Display;
+    fn border_top(&self) -> Dimension;
+    fn border_right(&self) -> Dimension;
+    fn border_bottom(&self) -> Dimension;
+    fn border_left(&self) -> Dimension;
+
+    fn display(&self) -> Display;
     fn position_type(&self) -> PositionType;
     fn direction(&self) -> Direction;
 
@@ -261,13 +261,11 @@ pub trait FlexLayoutStyle {
 
     fn overflow(&self) -> Overflow;
     fn min_width(&self) -> Dimension;
-	fn min_height(&self) -> Dimension;
-	fn max_width(&self) -> Dimension;
-	fn max_height(&self) -> Dimension;
+    fn min_height(&self) -> Dimension;
+    fn max_width(&self) -> Dimension;
+    fn max_height(&self) -> Dimension;
     fn aspect_ratio(&self) -> Number;
 }
-
-
 
 // ContainerStyle {
 // 	flex_direction: self.
@@ -320,7 +318,6 @@ pub trait FlexLayoutStyle {
 //     pub max_size: Size<Dimension>,
 //     pub aspect_ratio: Number,
 
-
 // }
 
 // impl Default for OtherStyle {
@@ -365,7 +362,6 @@ pub trait FlexLayoutStyle {
 //     //     }
 //     // }
 
-    
 //     // pub(crate) fn min_cross_size(&self, direction: FlexDirection) -> Dimension {
 //     //     match direction {
 //     //         FlexDirection::Row | FlexDirection::RowReverse => self.min_size.height,
@@ -454,7 +450,6 @@ pub trait FlexLayoutStyle {
 //         }
 //     }
 // }
-
 
 // impl Style {
 //     pub(crate) fn min_main_size(&self, direction: FlexDirection) -> Dimension {
@@ -551,20 +546,17 @@ pub trait FlexLayoutStyle {
 // 	vec.push(r);
 // 	out_any!(debug_println, "{:?}", std::time::Instant::now() - time);
 
-
 // 	let mut vec = map::vecmap::VecMap::new();
 // 	let time = std::time::Instant::now();
 // 	for i in 1..1000001 {
 // 		vec.insert(i, Style::default());
 // 	}
 // 	out_any!(debug_println, "vecmap1:{:?}", std::time::Instant::now() - time);
-	
 
 // 	let mut vec = map::vecmap::VecMap::new();
 // 	let time = std::time::Instant::now();
 // 	vec.insert(1000000, Style::default());
 // 	out_any!(debug_println, "vecmap2: {:?}", std::time::Instant::now() - time);
-
 
 // 	let mut vec = slab::Slab::new();
 // 	let time = std::time::Instant::now();

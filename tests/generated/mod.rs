@@ -213,6 +213,7 @@ mod size_defined_by_child;
 mod size_defined_by_child_with_border;
 mod size_defined_by_child_with_padding;
 mod size_defined_by_grand_child;
+mod stretch_width_undefind;
 mod width_smaller_then_content_with_flex_grow_large_size;
 mod width_smaller_then_content_with_flex_grow_small_size;
 mod width_smaller_then_content_with_flex_grow_unconstraint_size;
@@ -236,3 +237,4 @@ mod wrapped_column_max_height_flex;
 mod wrapped_row_within_align_items_center;
 mod wrapped_row_within_align_items_flex_end;
 mod wrapped_row_within_align_items_flex_start;
+fn main() {}

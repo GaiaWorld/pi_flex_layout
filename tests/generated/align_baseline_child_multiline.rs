@@ -1,156 +1,189 @@
-fn print(count: &mut usize, id: usize, layout: &layout::tree::LayoutR) {
-    *count += 1;
-   unsafe{debugit::debugit!("result: {:?} {:?} {:?}", *count, id, layout);
+fn print<T: pi_flex_layout::prelude::LayoutR + std::fmt::Debug>(
+    _arg: &mut (),
+    id: pi_slotmap_tree::TreeKey,
+    layout: &T,
+) {
+    unsafe { debugit::debugit!("result: {:?} {:?}", id, layout) };
 }
 #[test]
 fn align_baseline_child_multiline() {
-    let mut layout_tree = layout::tree::LayoutTree::default();
+    let mut layout_tree = pi_flex_layout::prelude::LayoutTree::default();
+    let node_1 = layout_tree.create_node();
     layout_tree.insert(
-        1,
-        0,
-        0,
-        layout::idtree::InsertType::Back,
-        layout::style::Style {
-            position_type: layout::style::PositionType::Absolute,
-            size: layout::geometry::Size {
-                width: layout::style::Dimension::Points(1920.0),
-                height: layout::style::Dimension::Points(1024.0),
+        node_1,
+        <pi_slotmap_tree::TreeKey as pi_null::Null>::null(),
+        <pi_slotmap_tree::TreeKey as pi_null::Null>::null(),
+        pi_slotmap_tree::InsertType::Back,
+        pi_flex_layout::prelude::Style {
+            position_type: pi_flex_layout::prelude::PositionType::Absolute,
+            size: pi_flex_layout::prelude::Size {
+                width: pi_flex_layout::prelude::Dimension::Points(1920.0),
+                height: pi_flex_layout::prelude::Dimension::Points(1024.0),
+            },
+            position: pi_flex_layout::prelude::Rect {
+                left: pi_flex_layout::prelude::Dimension::Points(0.0),
+                right: pi_flex_layout::prelude::Dimension::Points(0.0),
+                top: pi_flex_layout::prelude::Dimension::Points(0.0),
+                bottom: pi_flex_layout::prelude::Dimension::Points(0.0),
+            },
+            margin: pi_flex_layout::prelude::Rect {
+                left: pi_flex_layout::prelude::Dimension::Points(0.0),
+                right: pi_flex_layout::prelude::Dimension::Points(0.0),
+                top: pi_flex_layout::prelude::Dimension::Points(0.0),
+                bottom: pi_flex_layout::prelude::Dimension::Points(0.0),
             },
             ..Default::default()
         },
     );
+    let node_2 = layout_tree.create_node();
     layout_tree.insert(
-        2,
-        1,
-        0,
-        layout::idtree::InsertType::Back,
-        layout::style::Style {
-            align_items: layout::style::AlignItems::Baseline,
-            size: layout::geometry::Size {
-                width: layout::style::Dimension::Points(100f32),
+        node_2,
+        node_1,
+        <pi_slotmap_tree::TreeKey as pi_null::Null>::null(),
+        pi_slotmap_tree::InsertType::Back,
+        pi_flex_layout::prelude::Style {
+            align_items: pi_flex_layout::prelude::AlignItems::Baseline,
+            size: pi_flex_layout::prelude::Size {
+                width: pi_flex_layout::prelude::Dimension::Points(100f32),
                 ..Default::default()
             },
             ..Default::default()
         },
     );
+    let node_3 = layout_tree.create_node();
     layout_tree.insert(
-        3,
-        2,
-        0,
-        layout::idtree::InsertType::Back,
-        layout::style::Style {
-            size: layout::geometry::Size {
-                width: layout::style::Dimension::Points(50f32),
-                height: layout::style::Dimension::Points(60f32),
+        node_3,
+        node_2,
+        <pi_slotmap_tree::TreeKey as pi_null::Null>::null(),
+        pi_slotmap_tree::InsertType::Back,
+        pi_flex_layout::prelude::Style {
+            size: pi_flex_layout::prelude::Size {
+                width: pi_flex_layout::prelude::Dimension::Points(50f32),
+                height: pi_flex_layout::prelude::Dimension::Points(60f32),
                 ..Default::default()
             },
             ..Default::default()
         },
     );
+    let node_4 = layout_tree.create_node();
     layout_tree.insert(
-        4,
-        2,
-        0,
-        layout::idtree::InsertType::Back,
-        layout::style::Style {
-            flex_wrap: layout::style::FlexWrap::Wrap,
-            size: layout::geometry::Size {
-                width: layout::style::Dimension::Points(50f32),
+        node_4,
+        node_2,
+        <pi_slotmap_tree::TreeKey as pi_null::Null>::null(),
+        pi_slotmap_tree::InsertType::Back,
+        pi_flex_layout::prelude::Style {
+            flex_wrap: pi_flex_layout::prelude::FlexWrap::Wrap,
+            size: pi_flex_layout::prelude::Size {
+                width: pi_flex_layout::prelude::Dimension::Points(50f32),
                 ..Default::default()
             },
             ..Default::default()
         },
     );
+    let node_5 = layout_tree.create_node();
     layout_tree.insert(
-        5,
-        4,
-        0,
-        layout::idtree::InsertType::Back,
-        layout::style::Style {
-            size: layout::geometry::Size {
-                width: layout::style::Dimension::Points(25f32),
-                height: layout::style::Dimension::Points(20f32),
+        node_5,
+        node_4,
+        <pi_slotmap_tree::TreeKey as pi_null::Null>::null(),
+        pi_slotmap_tree::InsertType::Back,
+        pi_flex_layout::prelude::Style {
+            size: pi_flex_layout::prelude::Size {
+                width: pi_flex_layout::prelude::Dimension::Points(25f32),
+                height: pi_flex_layout::prelude::Dimension::Points(20f32),
                 ..Default::default()
             },
             ..Default::default()
         },
     );
+    let node_6 = layout_tree.create_node();
     layout_tree.insert(
-        6,
-        4,
-        0,
-        layout::idtree::InsertType::Back,
-        layout::style::Style {
-            size: layout::geometry::Size {
-                width: layout::style::Dimension::Points(25f32),
-                height: layout::style::Dimension::Points(10f32),
+        node_6,
+        node_4,
+        <pi_slotmap_tree::TreeKey as pi_null::Null>::null(),
+        pi_slotmap_tree::InsertType::Back,
+        pi_flex_layout::prelude::Style {
+            size: pi_flex_layout::prelude::Size {
+                width: pi_flex_layout::prelude::Dimension::Points(25f32),
+                height: pi_flex_layout::prelude::Dimension::Points(10f32),
                 ..Default::default()
             },
             ..Default::default()
         },
     );
+    let node_7 = layout_tree.create_node();
     layout_tree.insert(
-        7,
-        4,
-        0,
-        layout::idtree::InsertType::Back,
-        layout::style::Style {
-            size: layout::geometry::Size {
-                width: layout::style::Dimension::Points(25f32),
-                height: layout::style::Dimension::Points(20f32),
+        node_7,
+        node_4,
+        <pi_slotmap_tree::TreeKey as pi_null::Null>::null(),
+        pi_slotmap_tree::InsertType::Back,
+        pi_flex_layout::prelude::Style {
+            size: pi_flex_layout::prelude::Size {
+                width: pi_flex_layout::prelude::Dimension::Points(25f32),
+                height: pi_flex_layout::prelude::Dimension::Points(20f32),
                 ..Default::default()
             },
             ..Default::default()
         },
     );
+    let node_8 = layout_tree.create_node();
     layout_tree.insert(
-        8,
-        4,
-        0,
-        layout::idtree::InsertType::Back,
-        layout::style::Style {
-            size: layout::geometry::Size {
-                width: layout::style::Dimension::Points(25f32),
-                height: layout::style::Dimension::Points(10f32),
+        node_8,
+        node_4,
+        <pi_slotmap_tree::TreeKey as pi_null::Null>::null(),
+        pi_slotmap_tree::InsertType::Back,
+        pi_flex_layout::prelude::Style {
+            size: pi_flex_layout::prelude::Size {
+                width: pi_flex_layout::prelude::Dimension::Points(25f32),
+                height: pi_flex_layout::prelude::Dimension::Points(10f32),
                 ..Default::default()
             },
             ..Default::default()
         },
     );
-    layout_tree.compute(print, &mut 0);
-    let layout = layout_tree.get_layout(2).unwrap();
-    assert_eq!(layout.rect.end - layout.rect.start, 100f32);
-    assert_eq!(layout.rect.bottom - layout.rect.top, 80f32);
-    assert_eq!(layout.rect.start, 0f32);
-    assert_eq!(layout.rect.top, 0f32);
-    let layout = layout_tree.get_layout(3).unwrap();
-    assert_eq!(layout.rect.end - layout.rect.start, 50f32);
-    assert_eq!(layout.rect.bottom - layout.rect.top, 60f32);
-    assert_eq!(layout.rect.start, 0f32);
-    assert_eq!(layout.rect.top, 0f32);
-    let layout = layout_tree.get_layout(4).unwrap();
-    assert_eq!(layout.rect.end - layout.rect.start, 50f32);
-    assert_eq!(layout.rect.bottom - layout.rect.top, 40f32);
-    assert_eq!(layout.rect.start, 50f32);
-    assert_eq!(layout.rect.top, 40f32);
-    let layout = layout_tree.get_layout(5).unwrap();
-    assert_eq!(layout.rect.end - layout.rect.start, 25f32);
-    assert_eq!(layout.rect.bottom - layout.rect.top, 20f32);
-    assert_eq!(layout.rect.start, 0f32);
-    assert_eq!(layout.rect.top, 0f32);
-    let layout = layout_tree.get_layout(6).unwrap();
-    assert_eq!(layout.rect.end - layout.rect.start, 25f32);
-    assert_eq!(layout.rect.bottom - layout.rect.top, 10f32);
-    assert_eq!(layout.rect.start, 25f32);
-    assert_eq!(layout.rect.top, 0f32);
-    let layout = layout_tree.get_layout(7).unwrap();
-    assert_eq!(layout.rect.end - layout.rect.start, 25f32);
-    assert_eq!(layout.rect.bottom - layout.rect.top, 20f32);
-    assert_eq!(layout.rect.start, 0f32);
-    assert_eq!(layout.rect.top, 20f32);
-    let layout = layout_tree.get_layout(8).unwrap();
-    assert_eq!(layout.rect.end - layout.rect.start, 25f32);
-    assert_eq!(layout.rect.bottom - layout.rect.top, 10f32);
-    assert_eq!(layout.rect.start, 25f32);
-    assert_eq!(layout.rect.top, 20f32);
+    let c = pi_flex_layout::prelude::LayoutContext {
+        mark: std::marker::PhantomData,
+        i_nodes: &mut layout_tree.node_states,
+        layout_map: &mut pi_flex_layout::prelude::LayoutResults(&mut layout_tree.layout_map),
+        notify_arg: &mut (),
+        notify: print,
+        tree: &mut layout_tree.tree,
+        style: &mut layout_tree.style_map,
+    };
+    let mut layout = pi_flex_layout::prelude::Layout(c);
+    layout.compute(&mut layout_tree.dirty);
+    let layout = layout_tree.get_layout(node_2).unwrap();
+    assert_eq!((layout.rect.right - layout.rect.left).round(), 100f32);
+    assert_eq!((layout.rect.bottom - layout.rect.top).round(), 80f32);
+    assert_eq!(layout.rect.left.round(), 0f32);
+    assert_eq!(layout.rect.top.round(), 0f32);
+    let layout = layout_tree.get_layout(node_3).unwrap();
+    assert_eq!((layout.rect.right - layout.rect.left).round(), 50f32);
+    assert_eq!((layout.rect.bottom - layout.rect.top).round(), 60f32);
+    assert_eq!(layout.rect.left.round(), 0f32);
+    assert_eq!(layout.rect.top.round(), 0f32);
+    let layout = layout_tree.get_layout(node_4).unwrap();
+    assert_eq!((layout.rect.right - layout.rect.left).round(), 50f32);
+    assert_eq!((layout.rect.bottom - layout.rect.top).round(), 40f32);
+    assert_eq!(layout.rect.left.round(), 50f32);
+    assert_eq!(layout.rect.top.round(), 40f32);
+    let layout = layout_tree.get_layout(node_5).unwrap();
+    assert_eq!((layout.rect.right - layout.rect.left).round(), 25f32);
+    assert_eq!((layout.rect.bottom - layout.rect.top).round(), 20f32);
+    assert_eq!(layout.rect.left.round(), 0f32);
+    assert_eq!(layout.rect.top.round(), 0f32);
+    let layout = layout_tree.get_layout(node_6).unwrap();
+    assert_eq!((layout.rect.right - layout.rect.left).round(), 25f32);
+    assert_eq!((layout.rect.bottom - layout.rect.top).round(), 10f32);
+    assert_eq!(layout.rect.left.round(), 25f32);
+    assert_eq!(layout.rect.top.round(), 0f32);
+    let layout = layout_tree.get_layout(node_7).unwrap();
+    assert_eq!((layout.rect.right - layout.rect.left).round(), 25f32);
+    assert_eq!((layout.rect.bottom - layout.rect.top).round(), 20f32);
+    assert_eq!(layout.rect.left.round(), 0f32);
+    assert_eq!(layout.rect.top.round(), 20f32);
+    let layout = layout_tree.get_layout(node_8).unwrap();
+    assert_eq!((layout.rect.right - layout.rect.left).round(), 25f32);
+    assert_eq!((layout.rect.bottom - layout.rect.top).round(), 10f32);
+    assert_eq!(layout.rect.left.round(), 25f32);
+    assert_eq!(layout.rect.top.round(), 20f32);
 }

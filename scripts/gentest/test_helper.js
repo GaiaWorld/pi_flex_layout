@@ -8,8 +8,18 @@ function define_element_prop(property, getter) {
   }
 }
 
+const rootEscape = ["order", "flexGrow", "flexShrink", "flexBasis", "alignSelf", "flex"];
+
 define_element_prop("__stretch_description__", (e) => {
-  return JSON.stringify(describeElement(e));
+ 	var r = describeElement(e);
+	if (e.getAttribute("id") === "test-root") {
+		if (r.style) {
+			for (let key of rootEscape) {
+				delete r.style[key];
+			}
+		}
+	}
+	return  JSON.stringify(r);
 });
 
 function parseDimension(input) {
@@ -45,18 +55,18 @@ function parseEnum(input) {
 }
 
 function parseEdges(edges) {
-  var start = parseDimension(edges.start);
-  var end = parseDimension(edges.end);
+  var left = parseDimension(edges.left);
+  var right = parseDimension(edges.right);
   var top = parseDimension(edges.top);
   var bottom = parseDimension(edges.bottom);
   
-  if (start === undefined && end === undefined && top === undefined && bottom === undefined) {
+  if (left === undefined && right === undefined && top === undefined && bottom === undefined) {
     return undefined;
   }
 
   return {
-    start: start,
-    end: end,
+    left: left,
+    right: right,
     top: top,
     bottom: bottom
   };
@@ -103,29 +113,29 @@ function describeElement(e) {
       max_size: parseSize({width: e.style.maxWidth, height: e.style.maxHeight}),
 
       margin: parseEdges({
-        start: e.style.marginLeft,
-        end: e.style.marginRight,
+        left: e.style.marginLeft,
+        right: e.style.marginRight,
         top: e.style.marginTop,
         bottom: e.style.marginBottom,
       }),
 
       padding: parseEdges({
-        start: e.style.paddingLeft,
-        end: e.style.paddingRight,
+        left: e.style.paddingLeft,
+        right: e.style.paddingRight,
         top: e.style.paddingTop,
         bottom: e.style.paddingBottom,
       }),
 
       border: parseEdges({
-        start: e.style.borderLeftWidth,
-        end: e.style.borderRightWidth,
+        left: e.style.borderLeftWidth,
+        right: e.style.borderRightWidth,
         top: e.style.borderTopWidth,
         bottom: e.style.borderBottomWidth,
       }),
 
       position: parseEdges({
-        start: e.style.left,
-        end: e.style.right,
+        left: e.style.left,
+        right: e.style.right,
         top: e.style.top,
         bottom: e.style.bottom,
       }),
