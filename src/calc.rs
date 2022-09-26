@@ -399,7 +399,7 @@ impl<K: Null + Clone> Cache<K> {
         mut char_index: usize,
     ) {
         out_any!(
-            debug_println,
+            log::trace,
             "text_layout, id:{:?}, text: {:?}",
             &id,
             &text
@@ -474,7 +474,7 @@ impl<K: Null + Clone> Cache<K> {
         info: RelNodeInfo<K>,
         temp: TempType<K>,
     ) {
-        //out_any!(debug_println, "add info:{:?}", info);
+        //out_any!(log::trace, "add info:{:?}", info);
         line.add(self.main_line, &info);
         self.temp.rel_vec.push((info, temp));
     }
@@ -749,7 +749,7 @@ impl<K> Temp<K> {
             }
         }
         unsafe { PP += 1 };
-        out_any!(debug_println, "{:?}reline: line:{:?}", ppp(), &line);
+        out_any!(log::trace, "{:?}reline: line:{:?}", ppp(), &line);
         line
     }
 
@@ -772,7 +772,7 @@ impl LineInfo {
     // 添加到数组中，计算当前行的grow shrink 是否折行及折几行
     fn add<K>(&mut self, main: f32, info: &RelNodeInfo<K>) {
         out_any!(
-            debug_println,
+            log::trace,
             "add, main: {:?}, {:?}, self.item: {:?}",
             main,
             info,
@@ -784,7 +784,7 @@ impl LineInfo {
         {
             self.cross += self.item.cross;
             out_any!(
-                debug_println,
+                log::trace,
                 "breakline, self.cross:{:?}, self.item.cross: {:?}",
                 self.cross,
                 self.item.cross
@@ -862,7 +862,7 @@ where
         flex: &ContainerStyle,
     ) {
         let style = &self.style.get(id);
-        out_any!(debug_println, "abs_layout, id:{:?}, style: {:?}", id, style);
+        out_any!(log::trace, "abs_layout, id:{:?}, style: {:?}", id, style);
         if style.display() == Display::None {
             return;
         }
@@ -895,7 +895,7 @@ where
         };
 
         out_any!(
-            debug_println,
+            log::trace,
             "abs_layout, id:{:?} size:{:?} position:{:?}",
             id,
             (style.width(), style.height()),
@@ -928,7 +928,7 @@ where
             calc_number(style.max_height(), parent_size.1),
         );
         out_any!(
-            debug_println,
+            log::trace,
             "abs_layout11, id:{:?} w:{:?}, h:{:?}",
             id,
             w,
@@ -969,7 +969,7 @@ where
                 &border,
                 &padding,
             );
-            out_any!(debug_println, "calc_rect: id: {:?}, hh:{:?}", id, hh);
+            out_any!(log::trace, "calc_rect: id: {:?}, hh:{:?}", id, hh);
             // 再次计算区域
             w = calc_rect(
                 pos.left,
@@ -1038,7 +1038,7 @@ where
         state: INodeState,
     ) {
         let style = &self.style.get(id);
-        out_any!(debug_println, "rel_layout, id:{:?}, style: {:?}", id, style);
+        out_any!(log::trace, "rel_layout, id:{:?}, style: {:?}", id, style);
         if style.display() == Display::None {
             return;
         }
@@ -1082,7 +1082,7 @@ where
                     bottom: height.0 + height.1,
                 };
                 out_any!(
-                    debug_println,
+                    log::trace,
                     "set_layout text: {:?}, {:?}",
                     Rect {
                         left: width.0,
@@ -1192,7 +1192,7 @@ where
         padding: &Rect<Dimension>,
     ) -> (f32, f32, TempType<K>) {
         out_any!(
-            debug_println,
+            log::trace,
             "{:?}auto_layout1: id:{:?} head:{:?} tail:{:?} is_notify:{:?}",
             ppp(),
             id,
@@ -1211,7 +1211,7 @@ where
             direction,
         );
         out_any!(
-            debug_println,
+            log::trace,
             "{:?}auto_layout2: id:{:?}, size:{:?}",
             ppp(),
             id,
@@ -1242,7 +1242,7 @@ where
     ) {
         let mut line = LineInfo::default();
         out_any!(
-            debug_println,
+            log::trace,
             "{:?}do layout1, id:{:?} is_notify:{:?}",
             ppp(),
             id,
@@ -1269,7 +1269,7 @@ where
         line.cross += line.item.cross;
 
         out_any!(
-            debug_println,
+            log::trace,
             "{:?}do layout2, id:{:?} line:{:?}, vec:{:?}",
             ppp(),
             id,
@@ -1378,12 +1378,15 @@ where
             }
             let style = self.style.get(child);
             out_any!(
-                debug_println,
-                "node_layout, id:{:?}, style: {:?}",
+                log::trace,
+                "node_layout, id:{:?}, style: {:?}, is_vnode: {:?}, is_notify: {:?}",
                 child,
-                self.style.get(child)
+                self.style.get(child),
+				i_node.state.vnode(),
+				is_notify
             );
             if style.display() == Display::None {
+				self.layout_map.get_mut(child); // 取布局结果的目的是为了在布局结果不存在的情况下插入默认值
                 child = node_iter(direction, next, prev);
                 continue;
             }
@@ -1407,9 +1410,9 @@ where
                 };
                 self.node_layout(cache, is_notify, line, child, children_index, direction);
                 cache.vnode.push(id);
-                // if is_notify {
-                // self.notify.clone()(self.notify_arg, id, &mut self.layout_map.get_mut(id));
-                // }
+                if is_notify {
+                	self.notify.clone()(self.notify_arg, id, &mut self.layout_map.get_mut(id));
+                }
                 continue;
             }
             let order = style.order();
@@ -1422,7 +1425,7 @@ where
             // flex布局时， 如果子节点的宽高未定义，则根据子节点的布局进行计算。如果子节点的宽高为百分比，并且父节点对应宽高未定义，则为0
             let w = calc_number(style.width(), cache.size1.0);
             let h = calc_number(style.height(), cache.size1.1);
-            out_any!(debug_println, "id: {:?}, parent_size:{:?}", id, cache.size1);
+            out_any!(log::trace, "id: {:?}, parent_size:{:?}", id, cache.size1);
             let basis = style.flex_basis();
             let (main_d, cross_d) = cache.temp.main_cross(style.width(), style.height());
 
@@ -1438,7 +1441,7 @@ where
                 (style.margin_left(), style.margin_right()),
                 (style.margin_top(), style.margin_bottom()),
             );
-            out_any!(debug_println, "main1,id:{:?}, main1:{:?}, main_d: {:?}, size: {:?}, min_main: {:?}, max_main: {:?}", id, cache.main_value, main_d, (style.width(), style.height()), min_main, max_main);
+            out_any!(log::trace, "main1,id:{:?}, main1:{:?}, main_d: {:?}, size: {:?}, min_main: {:?}, max_main: {:?}", id, cache.main_value, main_d, (style.width(), style.height()), min_main, max_main);
             let mut info = RelNodeInfo {
                 id,
                 grow: style.flex_grow(),
@@ -1482,7 +1485,7 @@ where
                         && cache.temp.flex.align_items != AlignItems::Stretch;
                 }
                 out_any!(
-                    debug_println,
+                    log::trace,
                     "{:?}calc size: id:{:?} fix:{:?} size:{:?} next:{:?}",
                     ppp(),
                     id,
@@ -1522,7 +1525,7 @@ where
                     ),
                 );
                 out_any!(
-                    debug_println,
+                    log::trace,
                     "cache, main_line: {:?}, id: {:?}",
                     cache_new.main_line,
                     id
@@ -1548,7 +1551,7 @@ where
                 r
             } else {
                 // 确定大小的节点， TempType为None
-                //out_any!(debug_println, "static size: id:{:?} size:{:?} next:{:?}", id, (w, h), child);
+                //out_any!(log::trace, "static size: id:{:?} size:{:?} next:{:?}", id, (w, h), child);
                 TempType::None
             };
             let start = info.margin_main_start.or_else(0.0);
@@ -1607,7 +1610,7 @@ where
         pos: (f32, f32),
         size: (f32, f32),
     ) {
-        out_any!(debug_println, 
+        out_any!(log::trace, 
 			"{:?}set_layout: pos:{:?} size:{:?} id:{:?} head:{:?} tail:{:?} children_dirty:{:?} self_dirty:{:?} children_rect:{:?} children_abs:{:?}",
 			ppp(),
 			pos,
@@ -1701,7 +1704,7 @@ where
         line: &LineInfo,
     ) {
         out_any!(
-            debug_println,
+            log::trace,
             "{:?}layout: style:{:?} size:{:?} main_cross:{:?}",
             ppp(),
             &temp.flex,
@@ -1825,7 +1828,7 @@ where
         };
         for item in line.items.iter() {
             out_any!(
-                debug_println,
+                log::trace,
                 "single_line!!, item: {:?}, split: {:?}, pos: {:?}",
                 item,
                 split,
@@ -1845,7 +1848,7 @@ where
             );
         }
         out_any!(
-            debug_println,
+            log::trace,
             "single_line!!, item: {:?}, split: {:?}, pos: {:?}, cross:{:?}",
             &line.item,
             split,
@@ -1883,7 +1886,7 @@ where
             return;
         }
         out_any!(
-            debug_println,
+            log::trace,
             "{:?}single_line: normal:{:?} content_size:{:?}, cross:{:?} start_end:{:?} main:{:?}",
             ppp(),
             normal,
@@ -2015,7 +2018,7 @@ where
             }
         };
         out_any!(
-            debug_println,
+            log::trace,
             "{:?}main calc: pos:{:?} split:{:?}",
             ppp(),
             pos,
@@ -2212,7 +2215,7 @@ fn cross_calc<K>(
     align_items: AlignItems,
 ) -> (f32, f32) {
     out_any!(
-        debug_println,
+        log::trace,
         "{:?}cross_calc, start:{:?}, end:{:?}, info:{:?}",
         ppp(),
         start,
@@ -2541,7 +2544,7 @@ fn calc_margin(
                 }
                 _ => {
                     out_any!(
-                        debug_println,
+                        log::trace,
                         "calc_margin auto=============end: {:?}, start:{:?}, size:{:?}",
                         end,
                         start,

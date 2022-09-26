@@ -541,27 +541,27 @@ pub trait FlexLayoutStyle {
 // 		vec.push(Some(Style::default()));
 // 	}
 // 	let r = None;
-// 	out_any!(debug_println, "size:{:?}", std::mem::size_of_val(&r));
-// 	out_any!(debug_println, "size:{:?}", std::mem::size_of::<Option<usize>>());
+// 	out_any!(log::trace, "size:{:?}", std::mem::size_of_val(&r));
+// 	out_any!(log::trace, "size:{:?}", std::mem::size_of::<Option<usize>>());
 // 	vec.push(r);
-// 	out_any!(debug_println, "{:?}", std::time::Instant::now() - time);
+// 	out_any!(log::trace, "{:?}", std::time::Instant::now() - time);
 
 // 	let mut vec = map::vecmap::VecMap::new();
 // 	let time = std::time::Instant::now();
 // 	for i in 1..1000001 {
 // 		vec.insert(i, Style::default());
 // 	}
-// 	out_any!(debug_println, "vecmap1:{:?}", std::time::Instant::now() - time);
+// 	out_any!(log::trace, "vecmap1:{:?}", std::time::Instant::now() - time);
 
 // 	let mut vec = map::vecmap::VecMap::new();
 // 	let time = std::time::Instant::now();
 // 	vec.insert(1000000, Style::default());
-// 	out_any!(debug_println, "vecmap2: {:?}", std::time::Instant::now() - time);
+// 	out_any!(log::trace, "vecmap2: {:?}", std::time::Instant::now() - time);
 
 // 	let mut vec = slab::Slab::new();
 // 	let time = std::time::Instant::now();
 // 	for i in 1..1000001 {
 // 		vec.insert(Style::default());
 // 	}
-// 	out_any!(debug_println, "slab1:{:?}", std::time::Instant::now() - time);
+// 	out_any!(log::trace, "slab1:{:?}", std::time::Instant::now() - time);
 // }

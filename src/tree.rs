@@ -48,7 +48,7 @@ where
 {
     pub fn set_display(&mut self, id: K, dirty: &mut LayerDirty<K>) {
         out_any!(
-            debug_println,
+            log::trace,
             "set_display=====================, id:{:?}",
             id
         );
@@ -79,7 +79,7 @@ where
 
     pub fn compute(&mut self, dirty: &mut LayerDirty<K>) {
         if dirty.count() > 0 {
-            out_any!(debug_println, "compute: {:?}", &dirty);
+            out_any!(log::trace, "compute: {:?}", &dirty);
         }
         for (id, _layer) in dirty.iter() {
             // println_any!("layout======{:?}, {:?}", id, _layer);
@@ -87,7 +87,7 @@ where
                 Some(n) => (n, &mut self.0.i_nodes[*id]),
                 _ => continue,
             };
-            out_any!(debug_println, "    calc: {:?} children_dirty:{:?} self_dirty:{:?} children_abs:{:?} children_rect:{:?} children_no_align_self:{:?} children_index:{:?} vnode:{:?} abs:{:?} size_defined:{:?}, layer:{:?}", id, i_node.state.children_dirty(), i_node.state.self_dirty(), i_node.state.children_abs(), i_node.state.children_rect(), i_node.state.children_no_align_self(), i_node.state.children_index(), i_node.state.vnode(), i_node.state.abs(), i_node.state.size_defined(), _layer);
+            out_any!(log::trace, "    calc: {:?} children_dirty:{:?} self_dirty:{:?} children_abs:{:?} children_rect:{:?} children_no_align_self:{:?} children_index:{:?} vnode:{:?} abs:{:?} size_defined:{:?}, layer:{:?}", id, i_node.state.children_dirty(), i_node.state.self_dirty(), i_node.state.children_abs(), i_node.state.children_rect(), i_node.state.children_no_align_self(), i_node.state.children_index(), i_node.state.vnode(), i_node.state.abs(), i_node.state.size_defined(), _layer);
             let state = i_node.state;
             if !(state.self_dirty() || state.children_dirty()) {
                 continue;
@@ -194,7 +194,7 @@ where
             return;
         }
         out_any!(
-            debug_println,
+            log::trace,
             "set_self_style=====================, id:{:?}",
             id
         );
@@ -217,7 +217,7 @@ where
             return;
         }
         out_any!(
-            debug_println,
+            log::trace,
             "set_children_style=====================, id:{:?}",
             id
         );
@@ -234,7 +234,7 @@ where
         let i_node = &self.0.i_nodes[id];
         let state = i_node.state;
         out_any!(
-            debug_println,
+            log::trace,
             "set_normal_style=====================, id:{:?} state:{:?}",
             id,
             i_node.state
@@ -276,7 +276,7 @@ where
             true
         };
         out_any!(
-            debug_println,
+            log::trace,
             "set rect dirty=====================, id:{:?} state:{:?}",
             id,
             i_node.state
@@ -312,7 +312,7 @@ where
         while !id.is_null() {
             let i_node = &mut self.0.i_nodes[id];
 
-            out_any!(debug_println, "mark_children_dirty, id:{:?}, self_dirty:{:?}, size_defined:{:?}, abs:{:?}, vnode:{:?}, children_dirty: {:?}", id, i_node.state.self_dirty(),i_node.state.size_defined(), i_node.state.abs(), i_node.state.vnode(), i_node.state.children_dirty());
+            out_any!(log::trace, "mark_children_dirty, id:{:?}, self_dirty:{:?}, size_defined:{:?}, abs:{:?}, vnode:{:?}, children_dirty: {:?}", id, i_node.state.self_dirty(),i_node.state.size_defined(), i_node.state.abs(), i_node.state.vnode(), i_node.state.children_dirty());
 
             if i_node.state.children_dirty() {
                 break;
@@ -378,7 +378,7 @@ where
         i_node: &mut INode,
     ) -> K {
         out_any!(
-            debug_println,
+            log::trace,
             "set_self_dirty, id: {:?}, self_dirty:{:?}, children_dirty:{:?}",
             id,
             i_node.state.self_dirty(),

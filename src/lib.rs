@@ -5,8 +5,6 @@
 extern crate paste;
 
 #[macro_use]
-extern crate pi_debug_info;
-#[macro_use]
 extern crate pi_print_any;
 
 #[macro_use]
