@@ -143,7 +143,7 @@ pub enum FlexWrap {
 
 impl Default for FlexWrap {
     fn default() -> FlexWrap {
-        FlexWrap::NoWrap
+        FlexWrap::Wrap
     }
 }
 
