@@ -24,7 +24,7 @@ serde = { version = "1.0", features = ["derive"], option=true }
 pi_print_any = "0.1"
 pi_enum_default_macro="0.1"
 pi_slotmap={version="0.1", features = ["serde"]}
-pi_slotmap_tree="0.2"
+pi_slotmap_tree="0.3"
 pi_dirty = "0.1"
 
 [features]

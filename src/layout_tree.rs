@@ -327,13 +327,13 @@ impl TreeStorage<TreeKey> for SlotTreeStorage {
 
     fn get_layer(&self, id: TreeKey) -> Option<usize> {
         match self.0.get_layer(id) {
-            Some(r) => Some(r.clone()),
+            Some(r) => Some(r.layer()),
             None => None,
         }
     }
 
     fn layer(&self, id: TreeKey) -> usize {
-        self.0.layer(id)
+        self.0.layer(id).layer()
     }
 }
 
