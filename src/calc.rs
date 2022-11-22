@@ -7,8 +7,6 @@ use pi_slotmap_tree::{Down, Up};
 
 use std::marker::PhantomData;
 // use map::vecmap::VecMap;
-use crate::geometry::*;
-use crate::number::*;
 use crate::style::*;
 use core::cmp::Ord;
 use std::cmp::Ordering;

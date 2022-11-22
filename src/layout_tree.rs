@@ -3,6 +3,7 @@ use core::marker::PhantomData;
 use pi_null::Null;
 use pi_slotmap::{SecondaryMap, SlotMap};
 use pi_slotmap_tree::{InsertType, SlotMapTree, Storage, Tree, TreeKey};
+use crate::style::*;
 
 // this declaration is necessary to "mount" the generated code where cargo can see it
 // this allows us to both keep code generation scoped to a singe directory for fs events
@@ -29,7 +30,7 @@ pub struct Style {
     pub flex_shrink: f32,
     pub align_self: AlignSelf,
 
-    pub overflow: Overflow,
+    // pub overflow: Overflow,
     pub position: Rect<Dimension>,
     pub padding: Rect<Dimension>,
     pub border: Rect<Dimension>,
@@ -165,9 +166,9 @@ impl FlexLayoutStyle for Style {
         self.align_self
     }
 
-    fn overflow(&self) -> Overflow {
-        self.overflow
-    }
+    // fn overflow(&self) -> Overflow {
+    //     self.overflow
+    // }
 
     fn min_width(&self) -> Dimension {
         self.min_size.width

@@ -11,17 +11,13 @@ extern crate pi_print_any;
 extern crate serde;
 
 mod calc;
-mod geometry;
 mod layout_tree;
-mod number;
 pub mod style;
 mod tree;
 
 pub mod prelude {
     pub use crate::calc::*;
-    pub use crate::geometry::*;
     pub use crate::layout_tree::*;
-    pub use crate::number::*;
     pub use crate::style::*;
     pub use crate::tree::*;
 }
