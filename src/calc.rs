@@ -862,7 +862,7 @@ where
         flex: &ContainerStyle,
     ) {
         let style = &self.style.get(id);
-        out_any!(log::trace, "abs_layout, id:{:?}, style: {:?}", id, style);
+        out_any!(log::trace, "abs_layout, id:{:?}, parent_size: {:?}, style: {:?}", parent_size, id, style);
         if style.display() == Display::None {
             return;
         }
@@ -896,9 +896,11 @@ where
 
         out_any!(
             log::trace,
-            "abs_layout, id:{:?} size:{:?} position:{:?}",
+            "abs_layout, id:{:?} size:{:?} walign: {:?}, halign: {:?} position:{:?}",
             id,
             (style.width(), style.height()),
+			walign,
+			halign,
             style.position()
         );
         let mut w = calc_rect(
@@ -921,6 +923,7 @@ where
             state.children_abs(),
             halign,
         );
+
         let (min_width, max_width, min_height, max_height) = (
             calc_number(style.min_width(), parent_size.0),
             calc_number(style.max_width(), parent_size.0),
@@ -1243,10 +1246,11 @@ where
         let mut line = LineInfo::default();
         out_any!(
             log::trace,
-            "{:?}do layout1, id:{:?} is_notify:{:?}",
+            "{:?}do layout1, id:{:?} is_notify:{:?}, is_text: {:?}",
             ppp(),
             id,
-            is_notify
+            is_notify,
+			is_text
         );
 
         if is_text {
@@ -1330,9 +1334,6 @@ where
         children_index: bool,
         direction: Direction,
     ) {
-        if out_any!(format, "{:?}", child) == "LayoutKey { entity: Id(LocalVersion(4294967625)), text_index: 18446744073709551615 }" {
-			println!("zzzzzzzzzzzzzzzzzzzzzzzzz")
-		}
         // LayoutKey { entity: Id(LocalVersion(21474836532)), text_index: 18446744073709551615 }
         while !child.is_null() {
             let (next, prev) = self
@@ -2289,6 +2290,7 @@ fn calc_rect(
     _children_abs: bool,
     align: isize,
 ) -> (Number, f32) {
+
     let r = match size {
         Dimension::Points(r) => r,
         Dimension::Percent(r) => parent * r,
@@ -2358,6 +2360,7 @@ fn calc_rect(
 		Number::Defined(r),
 		rr + margin_start.resolve_value(parent),
 	);
+	
     // // 左右对齐
     // let rrr = match end {
     //     Dimension::Points(rrr) => rrr,
