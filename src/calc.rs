@@ -862,7 +862,7 @@ where
         flex: &ContainerStyle,
     ) {
         let style = &self.style.get(id);
-        out_any!(log::trace, "abs_layout, id:{:?}, parent_size: {:?}, style: {:?}", parent_size, id, style);
+        out_any!(log::trace, "abs_layout, id:{:?}, parent_size: {:?}, style: {:?}, display: {:?}", parent_size, id, style, style.display());
         if style.display() == Display::None {
             return;
         }
@@ -1041,7 +1041,7 @@ where
         state: INodeState,
     ) {
         let style = &self.style.get(id);
-        out_any!(log::trace, "rel_layout, id:{:?}, style: {:?}", id, style);
+        out_any!(log::trace, "rel_layout, id:{:?}, style: {:?}, display: {:?}", id, style, style.display());
         if style.display() == Display::None {
             return;
         }
@@ -1380,9 +1380,10 @@ where
             let style = self.style.get(child);
             out_any!(
                 log::trace,
-                "node_layout, id:{:?}, style: {:?}, is_vnode: {:?}, is_notify: {:?}",
+                "node_layout, id:{:?}, style: {:?}, display: {:?} is_vnode: {:?}, is_notify: {:?}",
                 child,
-                self.style.get(child),
+                &style,
+				style.display(),
 				i_node.state.vnode(),
 				is_notify
             );
