@@ -163,11 +163,19 @@ pub enum Dimension {
 
 impl Dimension {
     pub(crate) fn resolve_value(self, parent: f32) -> f32 {
-        match self {
-            Dimension::Points(points) => points,
-            Dimension::Percent(percent) => parent * percent,
-            _ => 0.0,
-        }
+		if let Dimension::Points(points) = self {
+			points
+		} else if let Dimension::Percent(percent) = self {
+			parent * percent
+		} else {
+			0.0
+		}
+
+        // match self {
+        //     Dimension::Points(points) => points,
+        //     Dimension::Percent(percent) => parent * percent,
+        //     _ => 0.0,
+        // }
     }
     // pub(crate) fn resolve(self, parent_width: Number) -> Number {
     //     match self {
@@ -178,24 +186,44 @@ impl Dimension {
     // }
 
     pub(crate) fn is_defined(self) -> bool {
-        match self {
-            Dimension::Points(_) => true,
-            Dimension::Percent(_) => true,
-            _ => false,
-        }
+		if let Dimension::Points(_) = self {
+			true
+		} else if let Dimension::Percent(_) = self {
+			true
+		} else {
+			false
+		}
+        // match self {
+        //     Dimension::Points(_) => true,
+        //     Dimension::Percent(_) => true,
+        //     _ => false,
+        // }
     }
     pub(crate) fn is_undefined(self) -> bool {
-        match self {
-            Dimension::Points(_) => false,
-            Dimension::Percent(_) => false,
-            _ => true,
-        }
+		if let Dimension::Points(_) = self {
+			false
+		} else if let Dimension::Percent(_) = self {
+			false
+		} else {
+			true
+		}
+
+        // match self {
+        //     Dimension::Points(_) => false,
+        //     Dimension::Percent(_) => false,
+        //     _ => true,
+        // }
     }
     pub(crate) fn is_points(self) -> bool {
-        match self {
-            Dimension::Points(_) => true,
-            _ => false,
-        }
+		if let Dimension::Points(_) = self {
+			true
+		} else {
+			false
+		}
+        // match self {
+        //     Dimension::Points(_) => true,
+        //     _ => false,
+        // }
     }
 }
 

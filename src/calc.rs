@@ -74,21 +74,21 @@ macro_rules! item_calc {
 macro_rules! make_func {
     ($name:ident, $type:ident) => {
         $crate::paste::item! {
-            pub(crate) fn $name(&self) -> bool {
+            pub fn $name(&self) -> bool {
                 (self.0 & INodeStateType::$type as usize) != 0
             }
 
             #[allow(dead_code)]
-            pub(crate) fn [<$name _true>](&mut self) {
+            pub fn [<$name _true>](&mut self) {
                 self.0 |= INodeStateType::$type as usize
             }
 
             #[allow(dead_code)]
-            pub(crate) fn [<$name _false>](&mut self) {
+            pub fn [<$name _false>](&mut self) {
                 self.0 &= !(INodeStateType::$type as usize)
             }
             #[allow(dead_code)]
-            pub(crate) fn [<$name _set>](&mut self, v: bool) {
+            pub fn [<$name _set>](&mut self, v: bool) {
                 if v {
                     self.0 |= INodeStateType::$type as usize
                 }else {
@@ -153,7 +153,7 @@ pub trait LayoutR {
 }
 
 #[derive(Default, Clone, Copy, PartialEq, PartialOrd, Debug, Serialize, Deserialize)]
-pub(crate) struct INodeState(usize);
+pub struct INodeState(usize);
 make_impl!(INodeState);
 
 //节点状态
@@ -230,7 +230,7 @@ impl Default for CharNode {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct INode {
-    pub(crate) state: INodeState,
+    pub state: INodeState,
     pub text: Vec<CharNode>, // 文字节点
     pub char_index: usize,   // 如果是图文混排，代表在Vec<CharNode>中的位置
     pub scale: f32,          // 文字布局的缩放值， 放到其它地方去？TODO
@@ -408,21 +408,24 @@ impl<K: Null + Clone> Cache<K> {
         while char_index < len {
             let r = &text[char_index];
             let (main_d, cross_d) = self.temp.main_cross(
-                match r.size.width {
-                    Dimension::Points(r) => r,
-                    _ => panic!(""),
-                },
-                match r.size.height {
-                    Dimension::Points(r) => r,
-                    _ => panic!(""),
-                },
+                if let Dimension::Points(r) = r.size.width {
+                    r
+                } else {
+					panic!("")
+				},
+                if let Dimension::Points(r) = r.size.height {
+                    r
+                } else {
+					panic!("")
+				},
             );
             let margin = self.temp.main_cross(
                 (
-                    Dimension::Points(match r.margin.left {
-                        Dimension::Points(r) => r,
-                        _ => panic!(""),
-                    }),
+                    Dimension::Points(if let Dimension::Points(r) = r.margin.left {
+						r
+					} else {
+						panic!("")
+					}),
                     Dimension::Points(0.0),
                 ),
                 (Dimension::Points(0.0), Dimension::Points(0.0)),
@@ -624,28 +627,31 @@ impl LineItem {
         self.shrink += info.shrink;
         self.main += info.main;
         let mut cross = info.cross;
-        match info.margin_main_end {
-            Number::Defined(r) => self.main += r,
-            _ => self.margin_auto += 1,
-        }
-        match info.margin_cross_start {
-            Number::Defined(r) => cross += r,
-            _ => (),
-        }
-        match info.margin_cross_end {
-            Number::Defined(r) => cross += r,
-            _ => (),
-        }
+		if let Number::Defined(r) = info.margin_main_end {
+			self.main += r;
+		} else {
+			self.margin_auto += 1;
+		}
+
+		if let Number::Defined(r) = info.margin_cross_start {
+			cross += r;
+		}
+
+		if let Number::Defined(r) = info.margin_cross_end {
+			cross += r;
+		}
+
         if self.cross < cross {
             self.cross = cross;
         }
         if line_start && info.line_start_margin_zero {
             return;
         }
-        match info.margin_main_start {
-            Number::Defined(r) => self.main += r,
-            _ => self.margin_auto += 1,
-        }
+		if let Number::Defined(r) = info.margin_main_start {
+			self.main += r;
+		} else {
+			self.margin_auto += 1;
+		}
     }
 }
 
@@ -728,19 +734,14 @@ impl<K> Temp<K> {
         if self.children_percent {
             for r in self.rel_vec.iter_mut() {
                 // 修正百分比的大小
-                match r.0.main_d {
-                    Dimension::Percent(rr) => {
-                        r.0.main = main * rr;
-                    }
-                    _ => (),
-                }
+				if let Dimension::Percent(rr) = r.0.main_d {
+					r.0.main = main * rr;
+				}
+
                 // 修正百分比的大小
-                match r.0.cross_d {
-                    Dimension::Percent(rr) => {
-                        r.0.cross = cross * rr;
-                    }
-                    _ => (),
-                }
+				if let Dimension::Percent(rr) = r.0.cross_d {
+					r.0.cross = cross * rr;
+				}
                 line.add(main, &r.0);
             }
         } else {
@@ -866,21 +867,25 @@ where
         if style.display() == Display::None {
             return;
         }
-        let a1 = match flex.justify_content {
-            JustifyContent::Center => 0,
-            JustifyContent::FlexEnd => 1,
-            _ => -1,
-        };
-        let mut a2 = match flex.align_items {
-            AlignItems::Center => 0,
-            AlignItems::FlexEnd => 1,
-            _ => -1,
-        };
-        match style.align_self() {
-            AlignSelf::Center => a2 = 0,
-            AlignSelf::FlexEnd => a2 = 1,
-            _ => (),
-        };
+		let a1 = if JustifyContent::Center == flex.justify_content {
+			0
+		} else if JustifyContent::FlexEnd == flex.justify_content {
+			1
+		} else {
+			-1
+		};
+		let mut a2 = if AlignItems::Center == flex.align_items {
+			0
+		} else if AlignItems::FlexEnd == flex.align_items {
+			1
+		} else {
+			-1
+		};
+		if AlignSelf::Center == style.align_self() {
+			a2 = 0;
+		} else if AlignSelf::FlexEnd == style.align_self() {
+			a2 = 1;
+		}
 		// flex.flex_wrap == FlexWrap::WrapReverse会时的交叉轴布局反向
 		if flex.flex_wrap == FlexWrap::WrapReverse {
 			a2 = -a2;
@@ -1074,30 +1079,27 @@ where
         parent_size: (f32, f32),
     ) {
         let i_node = &mut self.i_nodes[id];
-        match temp {
-            TempType::CharIndex(r) => {
-                // 文字布局
-                let cnode = &mut i_node.text[*r];
-                cnode.pos = Rect {
-                    left: width.0,
-                    top: height.0,
-                    right: width.0 + width.1, // TODO
-                    bottom: height.0 + height.1,
-                };
-                out_any!(
-                    log::trace,
-                    "set_layout text: {:?}, {:?}",
-                    Rect {
-                        left: width.0,
-                        top: height.0,
-                        right: width.0 + width.1, // TODO
-                        bottom: height.0 + height.1,
-                    },
-                    cnode.ch
-                );
-                return;
-            }
-            _ => (),
+        if let TempType::CharIndex(r) =  temp {
+			// 文字布局
+			let cnode = &mut i_node.text[*r];
+			cnode.pos = Rect {
+				left: width.0,
+				top: height.0,
+				right: width.0 + width.1, // TODO
+				bottom: height.0 + height.1,
+			};
+			out_any!(
+				log::trace,
+				"set_layout text: {:?}, {:?}",
+				Rect {
+					left: width.0,
+					top: height.0,
+					right: width.0 + width.1, // TODO
+					bottom: height.0 + height.1,
+				},
+				cnode.ch
+			);
+			return;
         }
         let s = self.style.get(id);
         let flex = s.container_style();
@@ -1126,57 +1128,53 @@ where
             height.0,
         );
         // 设置布局的值
-        match temp {
-            TempType::R(t) => {
-                // 有Auto的节点需要父确定大小，然后自身的temp重计算及布局
-                let mut layout = self.layout_map.get_mut(id);
-                set_layout_result(
-                    &mut layout,
-                    self.notify,
-                    self.notify_arg,
-                    id,
-                    (x, y),
-                    (width.1, height.1),
-                    &border,
-                    &padding,
-                );
-                let s = get_content_size(&mut layout);
-                let mc = t.main_cross(s.0, s.1);
-                let line = t.reline(mc.0, mc.1);
-                // 如果有临时缓存子节点数组
-                self.temp_layout(t, s, mc.0, mc.1, &line);
-            }
-            TempType::None => {
-                // 确定大小的节点，需要进一步布局
-                let is_text = i_node.text.len() > 0 && !state.vnode(); //i_node.text.len() > 0 && !state.vnode();
-                self.set_layout(
-                    id,
-                    is_text,
-                    child_head,
-                    child_tail,
-                    flex,
-                    direction,
-                    border,
-                    padding,
-                    state,
-                    (x, y),
-                    (width.1, height.1),
-                );
-            }
-            _ => {
-                // 有Auto的节点在计算阶段已经将自己的子节点都布局了，节点自身等待确定位置
-                let mut layout = self.layout_map.get_mut(id);
-                set_layout_result(
-                    &mut layout,
-                    self.notify,
-                    self.notify_arg,
-                    id,
-                    (x, y),
-                    (width.1, height.1),
-                    &border,
-                    &padding,
-                );
-            }
+        if let TempType::R(t) = temp {
+			// 有Auto的节点需要父确定大小，然后自身的temp重计算及布局
+			let mut layout = self.layout_map.get_mut(id);
+			set_layout_result(
+				&mut layout,
+				self.notify,
+				self.notify_arg,
+				id,
+				(x, y),
+				(width.1, height.1),
+				&border,
+				&padding,
+			);
+			let s = get_content_size(&mut layout);
+			let mc = t.main_cross(s.0, s.1);
+			let line = t.reline(mc.0, mc.1);
+			// 如果有临时缓存子节点数组
+			self.temp_layout(t, s, mc.0, mc.1, &line);
+		} else if let TempType::None = temp {
+			// 确定大小的节点，需要进一步布局
+			let is_text = i_node.text.len() > 0 && !state.vnode(); //i_node.text.len() > 0 && !state.vnode();
+			self.set_layout(
+				id,
+				is_text,
+				child_head,
+				child_tail,
+				flex,
+				direction,
+				border,
+				padding,
+				state,
+				(x, y),
+				(width.1, height.1),
+			);
+		} else {
+			// 有Auto的节点在计算阶段已经将自己的子节点都布局了，节点自身等待确定位置
+			let mut layout = self.layout_map.get_mut(id);
+			set_layout_result(
+				&mut layout,
+				self.notify,
+				self.notify_arg,
+				id,
+				(x, y),
+				(width.1, height.1),
+				&border,
+				&padding,
+			);
         }
     }
 
@@ -1567,25 +1565,20 @@ where
             };
             info.margin_main = start + end;
             line.main += info.main + line_start + end;
-            match basis {
+            if let Dimension::Points(r) = basis {
                 // 如果有basis, 则修正main
-                Dimension::Points(r) => {
-                    info.main = r;
-                    info.main_d = basis;
-                }
-                Dimension::Percent(r) => {
-                    info.main = cache.main_value * r;
-                    info.main_d = basis;
-                }
-                _ => (),
-            };
-            match info.main_d {
-                Dimension::Percent(_r) => cache.temp.children_percent = true,
-                _ => match info.cross_d {
-                    Dimension::Percent(_r) => cache.temp.children_percent = true,
-                    _ => (),
-                },
-            };
+				info.main = r;
+                info.main_d = basis;
+			} else if let Dimension::Percent(r) = basis {
+				info.main = cache.main_value * r;
+        		info.main_d = basis;
+			}
+
+			if let Dimension::Percent(_r) = info.main_d {
+				cache.temp.children_percent = true;
+			} else if let Dimension::Percent(_r) = info.cross_d{
+				cache.temp.children_percent = true;
+			}
             // 设置shrink的大小
             info.shrink *= info.main;
             if children_index {
@@ -1651,24 +1644,23 @@ where
         let rr = if state.children_dirty() {
             get_content_size(&mut layout)
         } else {
-            match r {
-                LayoutSize::Size(rr) => {
-                    if state.children_rect()
-                        && (state.children_abs()
-                            || (state.children_no_align_self()
-                                && (flex.flex_direction == FlexDirection::Row
-                                    || flex.flex_direction == FlexDirection::Column)
-                                && flex.flex_wrap == FlexWrap::NoWrap
-                                && flex.justify_content == JustifyContent::FlexStart
-                                && flex.align_items == AlignItems::FlexStart))
-                    {
-                        // 节点的宽高变化不影响子节点的布局，还可进一步优化仅交叉轴大小变化
-                        return;
-                    }
-                    rr
-                }
-                _ => return,
-            }
+            if let LayoutSize::Size(rr) = r {
+				if state.children_rect()
+					&& (state.children_abs()
+						|| (state.children_no_align_self()
+							&& (flex.flex_direction == FlexDirection::Row
+								|| flex.flex_direction == FlexDirection::Column)
+							&& flex.flex_wrap == FlexWrap::NoWrap
+							&& flex.justify_content == JustifyContent::FlexStart
+							&& flex.align_items == AlignItems::FlexStart))
+				{
+					// 节点的宽高变化不影响子节点的布局，还可进一步优化仅交叉轴大小变化
+					return;
+				}
+				rr
+            } else {
+				return;
+			}
         };
         // 宽高变动重新布局
         let mut cache = Cache::new(
@@ -2193,10 +2185,11 @@ fn min_max_calc(mut value: f32, min_value: Number, max_value: Number) -> f32 {
 }
 
 fn max_calc(value: Number, max_value: Number) -> Number {
-    match (value, max_value) {
-        (Number::Undefined, Number::Defined(_r)) => max_value,
-        _ => value,
-    }
+	if let (Number::Undefined, Number::Defined(_r)) = (value, max_value) {
+		max_value
+	} else {
+		value
+	}
 }
 
 fn main_calc<K>(info: &RelNodeInfo<K>, per: f32, pos: &mut f32) -> (f32, f32) {
@@ -2242,36 +2235,35 @@ fn cross_calc<K>(
 }
 // 返回位置和大小
 fn align_start<K>(start: f32, end: f32, info: &RelNodeInfo<K>) -> (f32, f32) {
-    match info.margin_cross_start {
-        Number::Defined(r) => (start + r, info.cross),
-        _ => match info.margin_cross_end {
-            Number::Defined(r) => (end - r - info.cross, info.cross),
-            _ => ((start + end - info.cross) / 2.0, info.cross),
-        },
-    }
+	if let Number::Defined(r) = info.margin_cross_start {
+		(start + r, info.cross)
+	} else if let Number::Defined(r) = info.margin_cross_end {
+		(end - r - info.cross, info.cross)
+	} else {
+		((start + end - info.cross) / 2.0, info.cross)
+	}
 }
 // 返回位置和大小
 fn align_end<K>(start: f32, end: f32, info: &RelNodeInfo<K>) -> (f32, f32) {
-    match info.margin_cross_end {
-        Number::Defined(r) => (end - r - info.cross, info.cross),
-        _ => match info.margin_cross_start {
-            Number::Defined(r) => (start + r, info.cross),
-            _ => ((start + end - info.cross) / 2.0, info.cross),
-        },
-    }
+	if let Number::Defined(r) = info.margin_cross_end {
+		(end - r - info.cross, info.cross)
+	} else if let Number::Defined(r) = info.margin_cross_start {
+		(start + r, info.cross)
+	} else {
+		((start + end - info.cross) / 2.0, info.cross)
+	}
 }
 // 返回位置和大小
 fn align_center<K>(start: f32, end: f32, info: &RelNodeInfo<K>) -> (f32, f32) {
-    match info.margin_cross_start {
-        Number::Defined(r) => match info.margin_cross_end {
-            Number::Defined(rr) => ((start + end - info.cross - r - rr) / 2.0 + r, info.cross),
-            _ => (start + r, info.cross),
-        },
-        _ => match info.margin_cross_end {
-            Number::Defined(r) => (end - r - info.cross, info.cross),
-            _ => ((start + end - info.cross) / 2.0, info.cross),
-        },
-    }
+	if let (Number::Defined(r), Number::Defined(rr)) = (info.margin_cross_start, info.margin_cross_end) {
+		((start + end - info.cross - r - rr) / 2.0 + r, info.cross)
+	} else if let (Number::Defined(r), _) = (info.margin_cross_start, info.margin_cross_end) {
+		(start + r, info.cross)
+	} else if let (_, Number::Defined(rr)) = (info.margin_cross_start, info.margin_cross_end) {
+		(end - rr - info.cross, info.cross)
+	} else {
+		((start + end - info.cross) / 2.0, info.cross)
+	}
 }
 // 返回位置和大小
 fn align_stretch<K>(start: f32, end: f32, info: &RelNodeInfo<K>) -> (f32, f32) {
@@ -2291,72 +2283,73 @@ fn calc_rect(
     _children_abs: bool,
     align: isize,
 ) -> (Number, f32) {
+	let r = if let Dimension::Points(r) = size {
+		r
+	} else if let Dimension::Percent(r) = size {
+		parent * r
+	} else {
+		// 通过明确的前后确定大小
+		let mut rr = if let Dimension::Points(rr) = start {
+			rr
+		} else if let Dimension::Points(rr) = start {
+			parent * rr
+		} else {
+			return (
+				Number::Undefined,
+				if let Dimension::Points(rrr) = end {
+					parent - rrr - margin_end.resolve_value(parent)
+				} else if let Dimension::Percent(rrr) = end {
+					parent - parent * rrr - margin_end.resolve_value(parent)
+				} else {
+					0.0
+				},
+			);
+		};
+		let mut rrr = if let Dimension::Points(rrr) = end {
+			rrr
+		} else if let Dimension::Percent(rrr) = end {
+			parent * rrr
+		} else {
+			return (Number::Undefined, margin_start.resolve_value(parent));
+		};
 
-    let r = match size {
-        Dimension::Points(r) => r,
-        Dimension::Percent(r) => parent * r,
-        _ => {
-            // 通过明确的前后确定大小
-            let mut rr = match start {
-                Dimension::Points(rr) => rr,
-                Dimension::Percent(rr) => parent * rr,
-                _ => {
-                    return (
-                        Number::Undefined,
-                        match end {
-                            Dimension::Points(rrr) => {
-                                parent - rrr - margin_end.resolve_value(parent)
-                            }
-                            Dimension::Percent(rrr) => {
-                                parent - parent * rrr - margin_end.resolve_value(parent)
-                            }
-                            _ => 0.0,
-                        },
-                    )
-                }
-            };
-            let mut rrr = match end {
-                Dimension::Points(rrr) => rrr,
-                Dimension::Percent(rrr) => parent * rrr,
-                _ => return (Number::Undefined, margin_start.resolve_value(parent)),
-            };
-            rr += margin_start.resolve_value(parent);
-            rrr += margin_end.resolve_value(parent);
-            return (Number::Defined(parent - rr - rrr), rr);
-        }
-    };
-    let rr = match start {
+		rr += margin_start.resolve_value(parent);
+		rrr += margin_end.resolve_value(parent);
+		return (Number::Defined(parent - rr - rrr), rr);
+	};
+
+	let rr = if let Dimension::Points(rr) = start {
 		// 定义了size，同时定义了start， end自动失效
-        Dimension::Points(rr) => rr,
-        Dimension::Percent(rr) => parent * rr,
-        _ => {
-            // 后对齐
-            let rrr = match end {
-                Dimension::Points(rrr) => rrr,
-                Dimension::Percent(rrr) => parent * rrr,
-                _ => {
-                    if align == 0 {
-                        // 居中对齐
-                        let s = (parent - r) * 0.5;
-                        return calc_margin(s, s + r, r, margin_start, margin_end, parent);
-                    } else if align > 0 {
-                        // 后对齐
-                        return (
-                            Number::Defined(r),
-                            parent - margin_end.resolve_value(parent) - r,
-                        );
-                    } else {
-                        // 前对齐
-                        return (Number::Defined(r), margin_start.resolve_value(parent));
-                    }
-                }
-            };
-            return (
-                Number::Defined(r),
-                parent - rrr - margin_end.resolve_value(parent) - r,
-            );
-        }
-    };
+		rr
+	} else if let Dimension::Percent(rr) = start {
+		parent * rr
+	} else {
+		let rrr = if let Dimension::Points(rrr) = end {
+			rrr
+		} else if let Dimension::Points(rrr) = end {
+			parent * rrr
+		} else {
+			if align == 0 {
+				// 居中对齐
+				let s = (parent - r) * 0.5;
+				return calc_margin(s, s + r, r, margin_start, margin_end, parent);
+			} else if align > 0 {
+				// 后对齐
+				return (
+					Number::Defined(r),
+					parent - margin_end.resolve_value(parent) - r,
+				);
+			} else {
+				// 前对齐
+				return (Number::Defined(r), margin_start.resolve_value(parent));
+			}
+		};
+		return (
+			Number::Defined(r),
+			parent - rrr - margin_end.resolve_value(parent) - r,
+		);
+	};
+
 	return (
 		Number::Defined(r),
 		rr + margin_start.resolve_value(parent),
@@ -2464,15 +2457,16 @@ fn calc_content_size(
     p_start: Dimension,
     p_end: Dimension,
 ) -> Number {
-    match size {
-        Number::Defined(r) => Number::Defined(
+	if let Number::Defined(r) = size {
+		Number::Defined(
             r - b_start.resolve_value(r)
                 - b_end.resolve_value(r)
                 - p_start.resolve_value(r)
                 - p_end.resolve_value(r),
-        ),
-        _ => size,
-    }
+        )
+	} else {
+		size
+	}
 }
 // 根据内容宽高计算宽高
 fn calc_size_from_content(
@@ -2499,12 +2493,14 @@ fn reverse_calc(points: f32, percent: f32) -> f32 {
     }
 }
 fn percent_calc(d: Dimension, points: &mut f32, percent: &mut f32) -> bool {
-    match d {
-        Dimension::Points(r) => *points += r,
-        Dimension::Percent(r) => *percent += r,
-        _ => return false,
-    };
-    true
+	if let Dimension::Points(r) = d {
+		*points += r;
+	} else if let Dimension::Percent(r) = d {
+		*percent += r;
+	} else {
+		return false;
+	}
+	true
 }
 
 // 已经确定了布局的区域， 需要计算布局中的border和padding
@@ -2527,87 +2523,86 @@ fn calc_margin(
     margin_end: Dimension,
     parent: f32,
 ) -> (Number, f32) {
-    match margin_start {
-        Dimension::Points(r) => {
-            start += r;
-            end = start + size;
-        }
-        Dimension::Percent(r) => {
-            start += r * parent;
-            end = start + size;
-        }
-        _ => {
-            match margin_end {
-                Dimension::Points(r) => {
-                    end -= r;
-                    start = end - size;
-                }
-                Dimension::Percent(r) => {
-                    end -= r * parent;
-                    start = end - size;
-                }
-                _ => {
-                    out_any!(
-                        log::trace,
-                        "calc_margin auto=============end: {:?}, start:{:?}, size:{:?}",
-                        end,
-                        start,
-                        size
-                    );
-                    // 平分剩余大小
-                    let d = (end - start - size) / 2.0;
-                    start += d;
-                    end -= d;
-                }
-            }
-        }
-    }
+	if let Dimension::Points(r) = margin_start {
+		start += r;
+		end = start + size;
+	} else if let Dimension::Percent(r) = margin_start {
+		start += r * parent;
+		end = start + size;
+	} else if let Dimension::Points(r) = margin_end {
+		end -= r;
+        start = end - size;
+	} else if let Dimension::Percent(r) = margin_end {
+		end -= r * parent;
+        start = end - size;
+	} else {
+		out_any!(
+			log::trace,
+			"calc_margin auto=============end: {:?}, start:{:?}, size:{:?}",
+			end,
+			start,
+			size
+		);
+		// 平分剩余大小
+		let d = (end - start - size) / 2.0;
+		start += d;
+		end -= d;
+	}
     (Number::Defined(end - start), start)
 }
 
 // 在flex计算的区域中 根据pos的位置进行偏移
 fn calc_pos(position_start: Dimension, position_end: Dimension, parent: f32, pos: f32) -> f32 {
-    match position_start {
-        Dimension::Points(r) => pos + r,
-        Dimension::Percent(r) => pos + parent * r,
-        _ => match position_end {
-            Dimension::Points(r) => pos - r,
-            Dimension::Percent(r) => pos - parent * r,
-            _ => pos,
-        },
-    }
+	if let Dimension::Points(r) = position_start {
+		pos + r
+	} else if let Dimension::Percent(r) = position_start {
+		pos + parent * r
+	} else {
+		if let Dimension::Points(r) = position_end {
+			pos - r
+		} else if let Dimension::Percent(r) = position_end {
+			pos - parent * r
+		} else {
+			pos
+		}
+	}
 }
 // 计算子节点的大小
 fn calc_number(s: Dimension, parent: f32) -> Number {
-    match s {
-        Dimension::Points(r) => Number::Defined(r),
-        Dimension::Percent(r) => Number::Defined(parent * r),
-        _ => Number::Undefined,
-    }
+	if let Dimension::Points(r) = s {
+		Number::Defined(r)
+	} else if let Dimension::Percent(r) = s {
+		Number::Defined(parent * r)
+	} else {
+		Number::Undefined
+	}
 }
 
 // 计算定位属性的节点的大小（margin）
 fn calc_location_number(s: Dimension, parent: f32) -> Number {
-    match s {
-        Dimension::Points(r) => Number::Defined(r),
-        Dimension::Percent(r) => Number::Defined(parent * r),
-        Dimension::Undefined => Number::Defined(0.0),
-        _ => Number::Undefined,
-    }
+	if let Dimension::Points(r) = s {
+		Number::Defined(r)
+	} else if let Dimension::Percent(r) = s {
+		Number::Defined(parent * r)
+	} else if let Dimension::Undefined = s {
+		Number::Defined(0.0)
+	} else {
+		Number::Undefined
+	}
 }
 
 fn calc_length(length: Number, min_length: Number) -> Number {
-    match (length, min_length) {
-        (Number::Undefined, Number::Defined(_)) => min_length,
-        (Number::Defined(l1), Number::Defined(l2)) => {
-            if l1 > l2 {
-                length
-            } else {
-                min_length
-            }
-        }
-        _ => length,
-    }
+	if let (Number::Undefined, Number::Defined(_)) = (length, min_length) {
+		min_length
+	} else if let (Number::Defined(l1), Number::Defined(l2)) = (length, min_length) {
+		if l1 > l2 {
+			length
+		} else {
+			min_length
+		}
+	} else {
+		length
+	}
 }
 pub(crate) static mut PP: usize = 0;
 pub(crate) static mut PC: usize = 0;

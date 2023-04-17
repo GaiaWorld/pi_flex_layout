@@ -20,19 +20,29 @@ impl Default for Number {
 
 impl OrElse<f32> for Number {
     fn or_else(self, other: f32) -> f32 {
-        match self {
-            Number::Defined(val) => val,
-            Number::Undefined => other,
-        }
+		if let Number::Defined(val) = self {
+			val
+		} else {
+			other
+		}
+		// match self {
+        //     Number::Defined(val) => val,
+        //     Number::Undefined => other,
+        // }
     }
 }
 
 impl OrElse<Number> for Number {
     fn or_else(self, other: Number) -> Number {
-        match self {
-            Number::Defined(_) => self,
-            Number::Undefined => other,
-        }
+		if let Number::Defined(_) = self {
+			self
+		} else {
+			other
+		}
+        // match self {
+        //     Number::Defined(_) => self,
+        //     Number::Undefined => other,
+        // }
     }
 }
 

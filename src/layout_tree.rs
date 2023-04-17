@@ -391,7 +391,7 @@ impl LayoutTree {
             style: &mut self.style_map,
         };
         let mut layout = Layout(c);
-        layout.set_rect(&mut self.dirty, id, true, true);
+        layout.set_rect(&mut self.dirty, id, true, true, &s);
     }
 }
 

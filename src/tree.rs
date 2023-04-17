@@ -46,13 +46,12 @@ where
     I: IndexMut<K, Output = INode>,
     R: GetMut<K, Target = LR>,
 {
-    pub fn set_display(&mut self, id: K, dirty: &mut LayerDirty<K>) {
+    pub fn set_display(&mut self, id: K, dirty: &mut LayerDirty<K>, style: &L) {
         out_any!(
             log::trace,
             "set_display=====================, id:{:?}",
             id
         );
-        let style = self.0.style.get(id);
         let (layer, parent) = (
             self.0.tree.get_layer(id).map_or(0, |l| l),
             self.0.tree.get_up(id).map_or(K::null(), |up| up.parent()),
@@ -60,8 +59,8 @@ where
         let i_node = &mut self.0.i_nodes[id];
         let state = i_node.state;
         if style.display() != Display::None {
-            Self::calc_rect(&style, i_node);
-            Self::calc_abs(&style, i_node);
+            Self::calc_rect(style, i_node);
+            Self::calc_abs(style, i_node);
             Self::calc_size_defined(&style, i_node);
             Self::set_self_dirty(dirty, id, parent, layer, i_node);
             self.set_parent(
@@ -187,8 +186,7 @@ where
         }
     }
     // 设置自身样式， 设自身脏，如果节点是size=auto并且不是绝对定位, 则继续设置其父节点ChildrenDirty脏
-    pub fn set_self_style(&mut self, id: K, dirty: &mut LayerDirty<K>) {
-        let style = self.0.style.get(id);
+    pub fn set_self_style(&mut self, id: K, dirty: &mut LayerDirty<K>, style: &L) {
         if style.display() == Display::None {
             // 如果是隐藏
             return;
@@ -210,8 +208,7 @@ where
     }
 
     // 设置会影响子节点布局的样式， 设children_dirty脏，如果节点是size=auto并且不是绝对定位, 则继续设置其父节点ChildrenDirty脏
-    pub fn set_children_style(&mut self, dirty: &mut LayerDirty<K>, id: K) {
-        let style = self.0.style.get(id);
+    pub fn set_children_style(&mut self, dirty: &mut LayerDirty<K>, id: K, style: &L) {
         if style.display() == Display::None {
             // 如果是隐藏
             return;
@@ -224,8 +221,7 @@ where
         self.mark_children_dirty(dirty, id)
     }
     // 设置一般样式， 设父节点脏
-    pub fn set_normal_style(&mut self, dirty: &mut LayerDirty<K>, id: K) {
-        let style = self.0.style.get(id);
+    pub fn set_normal_style(&mut self, dirty: &mut LayerDirty<K>, id: K, style: &L) {
         if style.display() == Display::None {
             // 如果是隐藏
             return;
@@ -249,8 +245,7 @@ where
         );
     }
     // 设置区域 pos margin size
-    pub fn set_rect(&mut self, dirty: &mut LayerDirty<K>, id: K, is_abs: bool, is_size: bool) {
-        let style = self.0.style.get(id);
+    pub fn set_rect(&mut self, dirty: &mut LayerDirty<K>, id: K, is_abs: bool, is_size: bool, style: &L) {
         if style.display() == Display::None {
             // 如果是隐藏
             return;
@@ -261,10 +256,10 @@ where
         );
         let i_node = &mut self.0.i_nodes[id];
         if is_abs {
-            Self::calc_abs(&style, i_node);
+            Self::calc_abs(style, i_node);
         }
         if is_size {
-            Self::calc_size_defined(&style, i_node);
+            Self::calc_size_defined(style, i_node);
         }
 
         Self::set_self_dirty(dirty, id, parent, layer, i_node);
