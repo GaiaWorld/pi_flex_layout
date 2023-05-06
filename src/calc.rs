@@ -1378,8 +1378,9 @@ where
             let style = self.style.get(child);
             out_any!(
                 log::trace,
-                "node_layout, id:{:?}, style: {:?}, display: {:?} is_vnode: {:?}, is_notify: {:?}",
+                "node_layout, id:{:?}, next: {:?}, style: {:?}, display: {:?}, is_vnode: {:?}, is_notify: {:?}",
                 child,
+				next,
                 &style,
 				style.display(),
 				i_node.state.vnode(),

@@ -121,6 +121,9 @@ where
                 }
                 // 如果节点是绝对定位， 则重新计算自身的布局数据
                 let (parent_size, flex) = if !i_node.state.self_rect() {
+					if parent.is_null() {
+						out_any!(log::debug, "node is root, but is not absolute rect, entity: {:?}", id);
+					}
                     // 如果节点自身不是绝对区域，则需要获得父容器的内容大小
                     let layout = self.0.layout_map.get_mut(parent);
                     let style = self.0.style.get(parent);
