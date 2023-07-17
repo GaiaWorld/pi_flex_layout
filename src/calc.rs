@@ -863,7 +863,7 @@ where
         flex: &ContainerStyle,
     ) {
         let style = &self.style.get(id);
-        out_any!(log::trace, "abs_layout, id:{:?}, parent_size: {:?}, style: {:?}, display: {:?}", parent_size, id, style, style.display());
+        out_any!(log::trace, "abs_layout, id:{:?}, parent_size: {:?}, style: {:?}, display: {:?}", id, parent_size, style, style.display());
         if style.display() == Display::None {
             return;
         }
@@ -899,15 +899,6 @@ where
             (a2, a1)
         };
 
-        out_any!(
-            log::trace,
-            "abs_layout, id:{:?} size:{:?} walign: {:?}, halign: {:?} position:{:?}",
-            id,
-            (style.width(), style.height()),
-			walign,
-			halign,
-            style.position()
-        );
         let mut w = calc_rect(
             style.position_left(),
             style.position_right(),
@@ -935,13 +926,20 @@ where
             calc_number(style.min_height(), parent_size.1),
             calc_number(style.max_height(), parent_size.1),
         );
-        out_any!(
+		out_any!(
             log::trace,
-            "abs_layout11, id:{:?} w:{:?}, h:{:?}",
+            "abs_layout, id:{:?} size:{:?} walign: {:?}, halign: {:?} position:{:?}, margin: {:?}, flex_direction {:?}, w: {:?}, h: {:?}",
             id,
-            w,
-            h
+            (style.width(), style.height()),
+			walign,
+			halign,
+            style.position(),
+			style.margin(),
+			flex.flex_direction,
+			w,
+			h
         );
+
         if w.0 == Number::Undefined || h.0 == Number::Undefined {
             // 根据子节点计算大小
             let direction = style.direction();
@@ -2284,7 +2282,7 @@ fn calc_rect(
     _children_abs: bool,
     align: isize,
 ) -> (Number, f32) {
-	let r = if let Dimension::Points(r) = size {
+	let calc_size = if let Dimension::Points(r) = size {
 		r
 	} else if let Dimension::Percent(r) = size {
 		parent * r
@@ -2292,7 +2290,7 @@ fn calc_rect(
 		// 通过明确的前后确定大小
 		let mut rr = if let Dimension::Points(rr) = start {
 			rr
-		} else if let Dimension::Points(rr) = start {
+		} else if let Dimension::Percent(rr) = start {
 			parent * rr
 		} else {
 			return (
@@ -2319,7 +2317,7 @@ fn calc_rect(
 		return (Number::Defined(parent - rr - rrr), rr);
 	};
 
-	let rr = if let Dimension::Points(rr) = start {
+	let calc_start = if let Dimension::Points(rr) = start {
 		// 定义了size，同时定义了start， end自动失效
 		rr
 	} else if let Dimension::Percent(rr) = start {
@@ -2327,33 +2325,33 @@ fn calc_rect(
 	} else {
 		let rrr = if let Dimension::Points(rrr) = end {
 			rrr
-		} else if let Dimension::Points(rrr) = end {
+		} else if let Dimension::Percent(rrr) = end {
 			parent * rrr
 		} else {
 			if align == 0 {
 				// 居中对齐
-				let s = (parent - r) * 0.5;
-				return calc_margin(s, s + r, r, margin_start, margin_end, parent);
+				let s = (parent - calc_size) * 0.5;
+				return calc_margin(s, s + calc_size, calc_size, margin_start, margin_end, parent);
 			} else if align > 0 {
 				// 后对齐
 				return (
-					Number::Defined(r),
-					parent - margin_end.resolve_value(parent) - r,
+					Number::Defined(calc_size),
+					parent - margin_end.resolve_value(parent) - calc_size,
 				);
 			} else {
 				// 前对齐
-				return (Number::Defined(r), margin_start.resolve_value(parent));
+				return (Number::Defined(calc_size), margin_start.resolve_value(parent));
 			}
 		};
 		return (
-			Number::Defined(r),
-			parent - rrr - margin_end.resolve_value(parent) - r,
+			Number::Defined(calc_size),
+			parent - rrr - margin_end.resolve_value(parent) - calc_size,
 		);
 	};
-
+	// size为Percent或Points、 start为Percent或Points
 	return (
-		Number::Defined(r),
-		rr + margin_start.resolve_value(parent),
+		Number::Defined(calc_size),
+		calc_start + margin_start.resolve_value(parent),
 	);
 	
     // // 左右对齐
