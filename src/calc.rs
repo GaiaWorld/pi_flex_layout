@@ -584,8 +584,8 @@ struct RelNodeInfo<K> {
     id: K,
     grow: f32,                    // 节点grow的值
     shrink: f32,                  // 节点shrink的值
-    main: f32,                    // 节点主轴尺寸(受basis影响)
-    cross: f32,                   // 节点交叉轴尺寸
+    main: f32,                    // 节点主轴尺寸(受basis影响), 与父的flex方向有关
+    cross: f32,                   // 节点交叉轴尺寸， 与父的flex方向有关
     margin_main: f32,             // 节点主轴方向 margin_start margin_end的大小
     margin_main_start: Number,    // 节点主轴方向 margin_start的大小
     margin_main_end: Number,      // 节点主轴方向 margin_end的大小
@@ -1211,10 +1211,11 @@ where
         );
         out_any!(
             log::trace,
-            "{:?}auto_layout2: id:{:?}, size:{:?}",
+            "{:?}auto_layout2: id:{:?}, size:{:?}, is_row: {:?}",
             ppp(),
             id,
-            (cache.main_value, cache.cross_value)
+            (cache.main_value, cache.cross_value),
+			cache.temp.row
         );
         let (w, h) = cache.temp.main_cross(cache.main_value, cache.cross_value);
         (
@@ -1440,7 +1441,7 @@ where
                 (style.margin_left(), style.margin_right()),
                 (style.margin_top(), style.margin_bottom()),
             );
-            out_any!(log::trace, "main1,id:{:?}, main1:{:?}, main_d: {:?}, size: {:?}, min_main: {:?}, max_main: {:?}", id, cache.main_value, main_d, (style.width(), style.height()), min_main, max_main);
+            out_any!(log::trace, "main1,id:{:?}, main1:{:?}, main_d: {:?}, size: {:?}, min_max: {:?}, min_main: {:?}, max_main: {:?}", id, cache.main_value, main_d, (style.width(), style.height()), (min_width, max_width, min_height, max_height), min_main, max_main);
             let mut info = RelNodeInfo {
                 id,
                 grow: style.flex_grow(),
