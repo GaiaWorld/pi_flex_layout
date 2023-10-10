@@ -222,7 +222,7 @@ impl Default for CharNode {
                 left: 0.0,
             },
             count: 0,
-            ch_id: DefaultKey::null(),
+            ch_id: <DefaultKey as Key>::null(),
             char_i: -1,
             context_id: -1,
         }
