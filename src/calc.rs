@@ -2,7 +2,7 @@
 use alloc::{vec, vec::Vec};
 use core::mem::replace;
 use pi_null::Null;
-use pi_slotmap::{DefaultKey, Key};
+use pi_slotmap::DefaultKey;
 use pi_slotmap_tree::{Down, Up};
 
 use std::marker::PhantomData;
@@ -222,7 +222,7 @@ impl Default for CharNode {
                 left: 0.0,
             },
             count: 0,
-            ch_id: <DefaultKey as Key>::null(),
+            ch_id: DefaultKey::null(),
             char_i: -1,
             context_id: -1,
         }
