@@ -53,7 +53,7 @@ where
             id
         );
         let (layer, parent) = (
-            self.0.tree.get_layer(id).map_or(0, |l| l),
+            self.0.tree.get_layer(id).map_or(usize::null(), |l| l),
             self.0.tree.get_up(id).map_or(K::null(), |up| up.parent()),
         );
         let i_node = &mut self.0.i_nodes[id];
@@ -121,8 +121,9 @@ where
                 }
                 // 如果节点是绝对定位， 则重新计算自身的布局数据
                 let (parent_size, flex) = if !i_node.state.self_rect() {
+					#[cfg(debug_assertions)]
 					if parent.is_null() {
-						out_any!(log::debug, "node is root, but is not absolute rect, entity: {:?}", id);
+						out_any!(panic, "node is root, but is not absolute rect, entity: {:?}, {:?}", id, _layer);
 					}
                     // 如果节点自身不是绝对区域，则需要获得父容器的内容大小
                     let layout = self.0.layout_map.get_mut(parent);
@@ -170,7 +171,7 @@ where
         if parent.is_null() {
             return;
         }
-        let layer = self.0.tree.get_layer(parent).map_or(0, |l| l);
+        let layer = self.0.tree.get_layer(parent).map_or(usize::null(), |l| l);
         let i_node = &mut self.0.i_nodes[parent];
         if !state.abs() {
             i_node.state.children_abs_false();
@@ -184,7 +185,7 @@ where
         if order != 0 {
             i_node.state.children_index_false();
         }
-        if mark && layer > 0 {
+        if mark && !layer.is_null() {
             self.mark_children_dirty(dirty, parent)
         }
     }
@@ -200,7 +201,7 @@ where
             id
         );
         let (layer, parent) = (
-            self.0.tree.get_layer(id).map_or(0, |l| l),
+            self.0.tree.get_layer(id).map_or(usize::null(), |l| l),
             self.0.tree.get_up(id).map_or(K::null(), |up| up.parent()),
         );
         let i_node = &mut self.0.i_nodes[id];
@@ -254,7 +255,7 @@ where
             return;
         }
         let (layer, parent) = (
-            self.0.tree.get_layer(id).map_or(0, |l| l),
+            self.0.tree.get_layer(id).map_or(usize::null(), |l| l),
             self.0.tree.get_up(id).map_or(K::null(), |up| up.parent()),
         );
         let i_node = &mut self.0.i_nodes[id];
@@ -309,17 +310,18 @@ where
     pub fn mark_children_dirty(&mut self, dirty: &mut LayerDirty<K>, mut id: K) {
         while !id.is_null() {
             let i_node = &mut self.0.i_nodes[id];
+			let layer = self.0.tree.get_layer(id).map_or(usize::null(), |l| l);
 
             out_any!(log::trace, "mark_children_dirty, id:{:?}, self_dirty:{:?}, size_defined:{:?}, abs:{:?}, vnode:{:?}, children_dirty: {:?}", id, i_node.state.self_dirty(),i_node.state.size_defined(), i_node.state.abs(), i_node.state.vnode(), i_node.state.children_dirty());
 
-            if i_node.state.children_dirty() {
+            if i_node.state.children_dirty() || layer.is_null() {
                 break;
             }
 
             if !i_node.state.vnode() {
                 i_node.state.children_dirty_true();
                 if !i_node.state.self_dirty() {
-                    dirty.mark(id, self.0.tree.get_layer(id).map_or(0, |l| l));
+                    dirty.mark(id, layer);
                 }
             }
 
@@ -384,7 +386,7 @@ where
         );
         if !i_node.state.vnode() && !i_node.state.self_dirty() {
             i_node.state.self_dirty_true();
-            if layer > 0 {
+            if !layer.is_null() {
                 if !i_node.state.children_dirty() {
                     dirty.mark(id, layer);
                 }
