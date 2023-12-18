@@ -374,7 +374,7 @@ pub(crate) fn get_content_size<T: LayoutR>(l: &T) -> (f32, f32) {
 // 计算时使用的临时数据结构
 struct Cache<K> {
     // size: Size<Number>,
-    size1: (f32, f32), // 最小大小
+    size1: (f32, f32), // 布局容器的 最小大小
     main: Number, // 主轴的大小, 用于约束换行，该值需要参考节点设置的width或height，以及max_width或max_height, 如果都未设置，则该值为无穷大
     cross: Number, // 交叉轴的大小
     main_line: f32, // 主轴的大小, 用于判断是否折行
@@ -396,7 +396,7 @@ impl<K: Null + Clone> Cache<K> {
         id: K,
         text: &mut Vec<CharNode>,
         line: &mut LineInfo,
-        mut char_index: usize,
+		overflow_wrap: OverflowWrap,
     ) {
         out_any!(
             log::trace,
@@ -404,31 +404,38 @@ impl<K: Null + Clone> Cache<K> {
             &id,
             &text
         );
+		let is_overflow_wrap = overflow_wrap == OverflowWrap::Anywhere || overflow_wrap == OverflowWrap::BreakWord;
+		let mut char_index = 0;
         let len = text.len();
         while char_index < len {
-            let r = &text[char_index];
+            let char_node = &mut text[char_index];
+
+			// 如果是单词容器节点， 并且单词字符可以换行， 则需要将单词的每字符进行布局， 单词容器的位置设置为0(容器不再继续参与布局)
+			if char_node.ch == char::from(0) && is_overflow_wrap {
+				char_node.pos = Rect { left: 0.0, right: char_node.pos.right - char_node.pos.left, top: 0.0, bottom: char_node.pos.bottom - char_node.pos.top };
+				char_index += 1;
+				continue;
+			}
+
             let (main_d, cross_d) = self.temp.main_cross(
-                if let Dimension::Points(r) = r.size.width {
+                if let Dimension::Points(r) = char_node.size.width {
                     r
                 } else {
 					panic!("")
 				},
-                if let Dimension::Points(r) = r.size.height {
+                if let Dimension::Points(r) = char_node.size.height {
                     r
                 } else {
 					panic!("")
 				},
             );
             let margin = self.temp.main_cross(
-                (
-                    Dimension::Points(if let Dimension::Points(r) = r.margin.left {
-						r
-					} else {
-						panic!("")
-					}),
-                    Dimension::Points(0.0),
-                ),
-                (Dimension::Points(0.0), Dimension::Points(0.0)),
+                Dimension::Points(if let Dimension::Points(r) = char_node.margin.left {
+					r
+				} else {
+					panic!("")
+				}),
+                Dimension::Points(0.0),
             );
             let mut info = RelNodeInfo {
                 id: id.clone(),
@@ -437,15 +444,15 @@ impl<K: Null + Clone> Cache<K> {
                 main: main_d,
                 cross: cross_d,
                 margin_main: 0.0,
-                margin_main_start: calc_location_number((margin.0).0, self.main_value),
-                margin_main_end: calc_location_number((margin.0).1, self.main_value),
-                margin_cross_start: calc_location_number((margin.1).0, self.cross_value),
-                margin_cross_end: calc_location_number((margin.1).1, self.cross_value),
+                margin_main_start: calc_location_number(margin.0, self.main_value),
+                margin_main_end: calc_location_number(margin.1, self.main_value),
+                margin_cross_start: calc_location_number(margin.1, self.cross_value),
+                margin_cross_end: calc_location_number(margin.1, self.cross_value),
                 align_self: AlignSelf::Auto,
                 main_d: Dimension::Points(main_d),
                 cross_d: Dimension::Points(cross_d),
                 line_start_margin_zero: true,
-                breakline: r.ch == char::from('\n'),
+                breakline: char_node.ch == char::from('\n'),
                 // min_main: Number::Undefined,
                 // max_main: Number::Undefined,
             };
@@ -460,10 +467,11 @@ impl<K: Null + Clone> Cache<K> {
             };
             info.margin_main = start + end;
             line.main += info.main + line_start + end;
+			
             self.add_vec(line, 0, info, TempType::CharIndex(char_index));
             // 判断是否为单词容器
-            if r.ch == char::from(0) {
-                char_index += r.count;
+            if char_node.ch == char::from(0) {
+                char_index += char_node.count;
             } else {
                 char_index += 1;
             }
@@ -1252,7 +1260,8 @@ where
 
         if is_text {
             let i_node = &mut self.i_nodes[id];
-            cache.text_layout(id, &mut i_node.text, &mut line, 0);
+			let style = self.style.get(id);
+            cache.text_layout(id, &mut i_node.text, &mut line, style.overflow_wrap());
         } else {
             self.node_layout(
                 cache,

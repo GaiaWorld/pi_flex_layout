@@ -11,7 +11,7 @@ use pi_slotmap_tree::{InsertType, SlotMapTree, Storage, Tree, TreeKey};
 use crate::prelude::*;
 use pi_dirty::*;
 
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct Style {
     pub display: Display,
     pub position_type: PositionType,
@@ -38,6 +38,8 @@ pub struct Style {
     pub aspect_ratio: Number,
     pub margin: Rect<Dimension>,
     pub size: Size<Dimension>,
+
+	pub overflow_wrap: OverflowWrap,
 }
 
 impl FlexLayoutStyle for Style {
@@ -188,6 +190,10 @@ impl FlexLayoutStyle for Style {
     fn aspect_ratio(&self) -> Number {
         self.aspect_ratio
     }
+
+	fn overflow_wrap(&self) -> OverflowWrap {
+		self.overflow_wrap
+	}
 }
 
 #[derive(Debug, Clone)]
@@ -377,10 +383,10 @@ impl LayoutTree {
 
     pub fn set_style(&mut self, id: TreeKey, s: Style) {
         if s.display == Display::None {
-            self.style_map.0.insert(id, s);
+            self.style_map.0.insert(id, s.clone());
             return;
         }
-        self.style_map.0.insert(id, s);
+        self.style_map.0.insert(id, s.clone());
         let c = LayoutContext {
             mark: PhantomData,
             i_nodes: &mut self.node_states,
@@ -391,7 +397,7 @@ impl LayoutTree {
             style: &mut self.style_map,
         };
         let mut layout = Layout(c);
-        layout.set_rect(&mut self.dirty, id, true, true, &s);
+        layout.set_rect(&mut self.dirty, id, true, true,  &s);
     }
 }
 

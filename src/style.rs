@@ -293,8 +293,18 @@ pub trait FlexLayoutStyle {
     fn max_width(&self) -> Dimension;
     fn max_height(&self) -> Dimension;
     fn aspect_ratio(&self) -> Number;
+
+	fn overflow_wrap(&self) -> OverflowWrap;
 }
 
+
+/// 用来设置是否应该在一个本来不能断开的字符串中插入换行符，以防止文本溢出其行向盒
+#[derive(Debug, Clone, Copy, EnumDefault, PartialEq, Serialize, Deserialize)]
+pub enum OverflowWrap {
+	Normal,
+	Anywhere,
+	BreakWord,
+}
 // ContainerStyle {
 // 	flex_direction: self.
 // }
