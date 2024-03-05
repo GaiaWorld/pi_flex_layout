@@ -1,6 +1,6 @@
 [package]
 name = "pi_flex_layout"
-version = "0.2.10"
+version = "0.2.11"
 authors = ["zmythleo <zmythleo@gmail.com>"]
 edition = "2018"
 include = ["src/**/*", "Cargo.toml"]
@@ -20,7 +20,7 @@ paste = "1.0"
 log = "0.4"
 pi_null="0.1"
 pi_heap = "0.1"
-pi_map = "0.1"
+pi_map = "0.2"
 serde = { version = "1.0", features = ["serde_derive"] }
 pi_print_any = "0.1"
 pi_enum_default_macro="0.1"

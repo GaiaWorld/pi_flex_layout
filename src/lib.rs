@@ -1,6 +1,7 @@
 // #![feature(assoc_int_consts)]
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(not(feature = "std"), feature(alloc))]
+#![allow(invalid_reference_casting)]
 
 extern crate paste;
 
