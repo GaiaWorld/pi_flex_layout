@@ -4,12 +4,33 @@ use crate::number::Number;
 // use crate::style;
 
 /// 矩形， 采用start end top bottom定义矩形
-#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Hash)]
 pub struct Rect<T> {
     pub left: T,
     pub right: T,
     pub top: T,
     pub bottom: T,
+}
+
+impl<T> Rect<T> {
+    pub fn new(left: T, right: T, top: T, bottom: T) -> Self {
+        Self {
+            left,
+            right,
+            top,
+            bottom,
+        }
+    }
+}
+
+impl<T: std::ops::Sub<Output = T> + Copy> Rect<T> {
+    pub fn width(&self) -> T{
+        self.right - self.left
+    }
+
+    pub fn height(&self) -> T{
+        self.bottom - self.top
+    }
 }
 
 // impl<T> Rect<T> {

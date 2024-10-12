@@ -2,6 +2,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(not(feature = "std"), feature(alloc))]
 #![allow(invalid_reference_casting)]
+#![feature(once_cell)]
 
 extern crate paste;
 

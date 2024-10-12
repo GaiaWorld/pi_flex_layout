@@ -1,6 +1,7 @@
 #[cfg(not(feature = "std"))]
 use alloc::{vec, vec::Vec};
 use core::mem::replace;
+use std::collections::VecDeque;
 use pi_null::Null;
 use pi_slotmap::DefaultKey;
 use pi_slotmap_tree::{Down, Up};
@@ -1076,6 +1077,7 @@ where
         );
     }
 
+    // 布局节点，
     fn layout_node(
         &mut self,
         id: K,
@@ -1226,7 +1228,7 @@ where
 			cache.temp.row
         );
         let (w, h) = cache.temp.main_cross(cache.main_value, cache.cross_value);
-        (
+        let r = (
             calc_size_from_content(w, border.left, border.right, padding.left, padding.right),
             calc_size_from_content(h, border.top, border.bottom, padding.top, padding.bottom),
             if is_notify {
@@ -1235,7 +1237,8 @@ where
                 // 则将布局的中间数组暂存下来
                 TempType::R(replace(&mut cache.temp, Temp::default()))
             },
-        )
+        );
+        r
     }
     fn do_layout(
         &mut self,
@@ -2615,3 +2618,39 @@ fn calc_length(length: Number, min_length: Number) -> Number {
 }
 pub(crate) static mut PP: usize = 0;
 pub(crate) static mut PC: usize = 0;
+
+pub static mut LOG: std::cell::OnceCell<VecDeque<String>> = std::cell::OnceCell::new();
+
+pub fn init_log() {
+    unsafe { LOG.set(VecDeque::default());}
+}
+pub fn push_log(s: String) -> usize { unsafe { 
+    let l = LOG.get_mut().unwrap();
+    // 最多保留150条日志
+    l.push_back(s);
+    // if l.len() >= 500 {
+    //     l.pop_front();
+    // }
+    l.len() - 1
+}}
+
+pub fn pop_log(len: usize) { unsafe { 
+    let r = LOG.get_mut().unwrap();
+    while r.len() > len {
+        r.pop_back();
+    }
+}}
+
+pub fn clear_log() { unsafe { 
+    LOG.get_mut().unwrap().clear();
+}}
+
+#[test]
+fn test() {
+    init_log();
+    let _a = push_log("a".to_string());
+    let b = push_log("b".to_string());
+    let _c = push_log("c".to_string());
+    pop_log(b);
+    println!("===={:?}", unsafe { LOG.get().unwrap() });
+}
