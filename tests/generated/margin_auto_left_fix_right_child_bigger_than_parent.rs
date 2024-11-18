@@ -3,7 +3,7 @@ fn print<T: pi_flex_layout::prelude::LayoutR + std::fmt::Debug>(
     id: pi_slotmap_tree::TreeKey,
     layout: &T,
 ) {
-    unsafe { debugit::debugit!("result: {:?} {:?}", id, layout) };
+    unsafe { println!("result: {:?} {:?}", id, layout) };
 }
 #[test]
 fn margin_auto_left_fix_right_child_bigger_than_parent() {

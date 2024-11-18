@@ -3,7 +3,7 @@ fn print<T: pi_flex_layout::prelude::LayoutR + std::fmt::Debug>(
     id: pi_slotmap_tree::TreeKey,
     layout: &T,
 ) {
-    unsafe { debugit::debugit!("result: {:?} {:?}", id, layout) };
+    unsafe { println!("result: {:?} {:?}", id, layout) };
 }
 #[test]
 fn justify_content_min_width_with_padding_child_width_lower_than_parent() {

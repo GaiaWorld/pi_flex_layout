@@ -219,7 +219,7 @@ fn generate_bench(description: &json::JsonValue) -> TokenStream {
     let index1 = Ident::new(&format!("node_{}", 1), Span::call_site());
     quote!(
         fn print<T: pi_flex_layout::prelude::LayoutR + std::fmt::Debug>(_arg: &mut (), id: pi_slotmap_tree::TreeKey, layout: &T) {
-           unsafe{debugit::debugit!("result: {:?} {:?}", id, layout)};
+           unsafe{println!("result: {:?} {:?}", id, layout)};
         }
         pub fn compute() {
             let mut layout_tree = pi_flex_layout::prelude::LayoutTree::default();
@@ -259,7 +259,7 @@ fn generate_test(name: impl AsRef<str>, description: &json::JsonValue) -> TokenS
 
     quote!(
         fn print<T: pi_flex_layout::prelude::LayoutR + std::fmt::Debug>(_arg: &mut (), id: pi_slotmap_tree::TreeKey, layout: &T) {
-            unsafe{debugit::debugit!("result: {:?} {:?}", id, layout)};
+            unsafe{println!("result: {:?} {:?}", id, layout)};
         }
         #[test]
         fn #name() {

@@ -11,7 +11,9 @@
 /// 在盒子模型中， size position margin，三者中size优先级最高。 首先就是确定size，优先级依次是：1明确指定，2通过left-right能计算出来，3子节点撑大。 在position中left top不指定值的话默认为0, right bottom为自动计算的填充值，比如right=ParentContentWidth-left-margin_left-width--margin_right。而magin=Auto是自动填充left-right和width中间的值，如果没有明确指定left和right，magin=Auto最后的值就是margin=0
 /// 注意： 为了不反复计算自动大小，如果父节点的主轴为自动大小，则flex-wrap自动为NoWrap。这个和浏览器的实现不一致！
 /// TODO aspect_ratio 要求width 或 height 有一个为auto，如果都被指定，则aspect_ratio被忽略
-/// TODO min_size max_size 仅作用在size上， 需要确认是否参与grow shrink的计算，
+/// TODO 支持min_size max_size
+/// TODO 支持gap 支持负值
+/// TODO 支持自动缩小
 
 /// 浏览器版本的flex实现不合理的地方
 /// 1、自动大小的容器，其大小受子节点大小计算的影响，flex-basis这个时候并没有参与计算，但浏览器版本行和列的实现不一致，列的情况下子节点的flex-basis会影响父容器的大小，行不会。
@@ -29,6 +31,7 @@ use std::ops::IndexMut;
 // use map::vecmap::VecMap;
 
 use crate::calc::*;
+use crate::geometry::*;
 use crate::style::*;
 use pi_dirty::*;
 
@@ -47,11 +50,7 @@ where
     R: GetMut<K, Target = LR>,
 {
     pub fn set_display(&mut self, id: K, dirty: &mut LayerDirty<K>, style: &L) {
-        out_any!(
-            log::trace,
-            "set_display=====================, id:{:?}",
-            id
-        );
+        out_any!(log::trace, "set_display=====================, id:{:?}", id);
         let (layer, parent) = (
             self.0.tree.get_layer(id).map_or(usize::null(), |l| l),
             self.0.tree.get_up(id).map_or(K::null(), |up| up.parent()),
@@ -109,37 +108,25 @@ where
                 PP = 0
             };
             let is_text = i_node.text.len() > 0;
-            if state.abs() {
-                let i_node = &self.0.i_nodes[*id];
-                let mut parent = self.0.tree.get_up(*id).map_or(K::null(), |up| up.parent());
-                while !parent.is_null() && self.0.i_nodes[parent].state.vnode() {
-                    parent = self
-                        .0
-                        .tree
-                        .get_up(parent)
-                        .map_or(K::null(), |up| up.parent());
-                }
-                // 如果节点是绝对定位， 则重新计算自身的布局数据
-                let (parent_size, flex) = if !i_node.state.self_rect() {
-					#[cfg(debug_assertions)]
-					if parent.is_null() {
-						out_any!(panic, "node is root, but is not absolute rect, entity: {:?}, {:?}", id, _layer);
-					}
-                    // 如果节点自身不是绝对区域，则需要获得父容器的内容大小
-                    let layout = self.0.layout_map.get_mut(parent);
-                    let style = self.0.style.get(parent);
-                    (get_content_size(&layout), style.container_style())
-                } else {
-                    (
-                        (0.0, 0.0),
-                        ContainerStyle {
-                            justify_content: JustifyContent::FlexStart,
-                            align_content: AlignContent::FlexStart,
-                            flex_direction: FlexDirection::Row,
-                            flex_wrap: FlexWrap::NoWrap,
-                            align_items: AlignItems::FlexStart,
-                        },
-                    )
+            // 忽略虚拟父节点， 找到包含块元素（一般是父节点）
+            let mut parent = self.0.tree.get_up(*id).map_or(K::null(), |up| up.parent());
+            while !parent.is_null() && self.0.i_nodes[parent].state.vnode() {
+                parent = self
+                    .0
+                    .tree
+                    .get_up(parent)
+                    .map_or(K::null(), |up| up.parent());
+            }
+            if parent.is_null() {
+                // 如果父容器为空
+                let flex = ContainerStyle {
+                    justify_content: JustifyContent::FlexStart,
+                    align_content: AlignContent::FlexStart,
+                    flex_direction: FlexDirection::Row,
+                    flex_wrap: FlexWrap::NoWrap,
+                    align_items: AlignItems::FlexStart,
+                    row_gap: 0.0,
+                    column_gap: 0.0,
                 };
                 self.0.abs_layout(
                     *id,
@@ -147,17 +134,50 @@ where
                     child_head,
                     child_tail,
                     state,
-                    parent_size,
+                    Size::default(),
                     &flex,
+                );
+            } else if state.abs() && state.self_rect() {
+                // 绝对定位且只需要计算自身大小的节点
+                let style = self.0.style.get(parent);
+                self.0.abs_layout(
+                    *id,
+                    is_text,
+                    child_head,
+                    child_tail,
+                    state,
+                    Size::default(),
+                    &style.container_style(),
+                );
+            } else if state.abs() {
+                // 如果节点是绝对定位， 则重新计算自身的布局数据
+                let layout = self.0.layout_map.get_mut(parent);
+                let style = self.0.style.get(parent);
+                self.0.abs_layout(
+                    *id,
+                    is_text,
+                    child_head,
+                    child_tail,
+                    state,
+                    abs_containing_block_size(&layout),
+                    &style.container_style(),
                 );
             } else {
                 // 如果节点是相对定位，被设脏表示其修改的数据不会影响父节点的布局 则先重新计算自身的布局数据，然后修改子节点的布局数据
-                self.0
-                    .rel_layout(*id, is_text, child_head, child_tail, state);
+                let layout = self.0.layout_map.get_mut(parent);
+                self.0.rel_layout(
+                    *id,
+                    is_text,
+                    child_head,
+                    child_tail,
+                    state,
+                    rel_containing_block_size(&layout),
+                );
             }
         }
         dirty.clear();
     }
+
     // 样式改变设置父节点
     fn set_parent(
         &mut self,
@@ -249,7 +269,14 @@ where
         );
     }
     // 设置区域 pos margin size
-    pub fn set_rect(&mut self, dirty: &mut LayerDirty<K>, id: K, is_abs: bool, is_size: bool, style: &L) {
+    pub fn set_rect(
+        &mut self,
+        dirty: &mut LayerDirty<K>,
+        id: K,
+        is_abs: bool,
+        is_size: bool,
+        style: &L,
+    ) {
         if style.display() == Display::None {
             // 如果是隐藏
             return;
@@ -310,7 +337,7 @@ where
     pub fn mark_children_dirty(&mut self, dirty: &mut LayerDirty<K>, mut id: K) {
         while !id.is_null() {
             let i_node = &mut self.0.i_nodes[id];
-			let layer = self.0.tree.get_layer(id).map_or(usize::null(), |l| l);
+            let layer = self.0.tree.get_layer(id).map_or(usize::null(), |l| l);
 
             out_any!(log::trace, "mark_children_dirty, id:{:?}, self_dirty:{:?}, size_defined:{:?}, abs:{:?}, vnode:{:?}, children_dirty: {:?}", id, i_node.state.self_dirty(),i_node.state.size_defined(), i_node.state.abs(), i_node.state.vnode(), i_node.state.children_dirty());
 

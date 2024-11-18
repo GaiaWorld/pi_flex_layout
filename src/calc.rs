@@ -1,3 +1,44 @@
+
+// LayoutContext{
+
+//     abs_layout // 绝对布局，一般从此开始计算
+//             auto_children_layout // 没有定义宽高，则自动布局计算后，set_layout_result
+//                     set_layout_result
+//             set_layout // 有定义宽高，则直接set_layout
+
+//     rel_layout // 不影响自身及所在容器的相对布局，一般从此开始计算
+//             set_layout
+
+//     auto_children_layout // 自动子节点布局， 如果布局本身不会改变自身节点，则fix为true，子节点就直接布局，否则需要缓存临时节点信息
+//             do_layout //
+
+//     temp_line_layout // 临时节点按行信息进行实际布局
+//             abs_layout
+//             layout_temp_node
+
+//     set_layout // 
+//             set_layout_result
+//             do_layout // 如果内容宽高有改变，则调用自身的子节点布局方法
+
+//     children_layout // 子节点布局，生成临时节点并且统计行信息
+//             abs_layout
+//             auto_children_layout // 如果子节点没有定义宽高，则自动布局计算
+
+//     do_layout // 遍历子节点，统计行信息，进行布局
+//             text_layout // 如果是文字节点，则调用文字布局方法
+//             children_layout // 非文字子节点的布局，临时节点及行信息统计
+//             temp_line_layout
+
+//     layout_temp_node // 布局临时节点
+//             set_layout_result
+//             temp_line_layout // 如果有子节点，则重建行信息后进行布局
+//             set_layout // 确定大小的节点，需要进一步布局
+
+// }
+
+
+// TODO 整理： 改用BitFlag，Cache改为CalcContext，将Trait放到单独文件。
+
 #[cfg(not(feature = "std"))]
 use alloc::{vec, vec::Vec};
 use core::mem::replace;
@@ -10,7 +51,7 @@ use std::marker::PhantomData;
 use crate::geometry::*;
 use crate::number::*;
 use crate::style::*;
-use core::cmp::Ord;
+// use crate::grow_shrink::*;
 use std::cmp::Ordering;
 use std::ops::IndexMut;
 // use pi_tree::Tree;
@@ -26,49 +67,6 @@ fn ppp() -> String {
         s.push_str("**");
     }
     s
-}
-// 每个子节点根据 justify-content align-items align-self，来计算main cross的位置和大小
-macro_rules! item_calc {
-    ($self:ident, $temp:ident, $start:ident, $end:ident, $content_size:ident, $cross_start:ident, $cross_end:ident, $normal:ident, $pos:ident, $split:ident, $main_calc:ident, $main_calc_reverse:ident) => {
-        let ai = $temp.flex.align_items;
-        if $normal {
-            if $temp.row {
-                while *$start < $end {
-                    let (info, temp) = unsafe { $temp.rel_vec.get_unchecked_mut(*$start) };
-                    *$start += 1;
-                    let main = $main_calc(info, $split, &mut $pos);
-                    let cross = cross_calc(info, $cross_start, $cross_end, ai);
-                    $self.layout_node(info.id, main, cross, temp, $content_size);
-                }
-            } else {
-                while *$start < $end {
-                    let (info, temp) = unsafe { $temp.rel_vec.get_unchecked_mut(*$start) };
-                    *$start += 1;
-                    let main = $main_calc(info, $split, &mut $pos);
-                    let cross = cross_calc(info, $cross_start, $cross_end, ai);
-                    $self.layout_node(info.id, cross, main, temp, $content_size);
-                }
-            }
-        } else {
-            if $temp.row {
-                while *$start < $end {
-                    let (info, temp) = unsafe { $temp.rel_vec.get_unchecked_mut(*$start) };
-                    *$start += 1;
-                    let main = $main_calc_reverse(info, $split, &mut $pos);
-                    let cross = cross_calc(info, $cross_start, $cross_end, ai);
-                    $self.layout_node(info.id, main, cross, temp, $content_size);
-                }
-            } else {
-                while *$start < $end {
-                    let (info, temp) = unsafe { $temp.rel_vec.get_unchecked_mut(*$start) };
-                    *$start += 1;
-                    let main = $main_calc_reverse(info, $split, &mut $pos);
-                    let cross = cross_calc(info, $cross_start, $cross_end, ai);
-                    $self.layout_node(info.id, cross, main, temp, $content_size);
-                }
-            }
-        }
-    };
 }
 
 macro_rules! make_func {
@@ -140,13 +138,16 @@ macro_rules! make_impl {
 pub trait LayoutR {
     // 取到布局属性
     fn rect(&self) -> &Rect<f32>;
-    fn border(&self) -> &Rect<f32>;
-    fn padding(&self) -> &Rect<f32>;
+    fn border(&self) -> &SideGap<f32>;
+    fn padding(&self) -> &SideGap<f32>;
+    // 是否为绝对定位，绝对定位节点的父包含块必须使用内边距区（padding box）
+    fn absolute(&self) -> bool;
 
     // 设置布局属性
     fn set_rect(&mut self, v: Rect<f32>);
-    fn set_border(&mut self, v: Rect<f32>);
-    fn set_padding(&mut self, v: Rect<f32>);
+    fn set_border(&mut self, v: SideGap<f32>);
+    fn set_padding(&mut self, v: SideGap<f32>);
+    fn set_absolute(&mut self, b: bool);
 
     /// 布局属性设置完成会调用此方法
     fn set_finish(&mut self);
@@ -176,29 +177,25 @@ pub enum INodeStateType {
     ChildrenRect = 8192,
     SelfRect = 16384, // 自身区域不受父节点或子节点影响
 }
-// // TODO max min aspect_ratio， RectStyle也可去掉了. 将start end改为left right。 将数据结构统一到标准结构下， 比如Rect Size Point
-// #[derive(Clone, Debug, Serialize, Deserialize)]
-// pub struct CharNode {
-//     pub ch: char,                // 字符
-//     pub margin_start: f32, // margin
-//     pub size: (f32, f32),        // 字符大小
-//     pub pos: (f32, f32),         // 位置
-//     pub ch_id_or_count: usize,   // 字符id或单词的字符数量
-//     pub base_width: f32,         // font_size 为32 的字符宽度
-// 	pub char_i: isize,// 字符在整个节点中的索引
-// 	pub context_id: isize, // 如果是多字符文字中的某个字符，则存在一个容易索引
-// }
+
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CharNode {
-    pub ch: char,                // 字符
-    pub margin: Rect<Dimension>, // margin
-    pub size: Size<Dimension>,   // 字符大小
-    pub pos: Rect<f32>,          // 位置
-    pub count: usize, // 字符id或单词的字符数量 ch==char::from(0)时，表示单词容器节点，此时ch_id_or_count表示该节点中的字符数量
+    // 字符
+    pub ch: char,                
+    // margin
+    pub margin: Rect<Dimension>, 
+    // 字符大小
+    pub size: Size<Dimension>,   
+    // 位置
+    pub pos: Rect<f32>,          
+    // 字符id或单词的字符数量 ch==char::from(0)时，表示单词容器节点，此时ch_id_or_count表示该节点中的字符数量
+    pub count: usize, 
     pub ch_id: DefaultKey,
-    pub char_i: isize,     // 字符在整个节点中的索引
-    pub context_id: isize, // 如果是多字符文字中的某个字符，则存在一个上下文索引
+    // 字符在整个节点中的索引
+    pub char_i: isize,     
+    // 如果是多字符文字中的某个字符，则存在一个上下文索引
+    pub context_id: isize, 
 }
 
 impl Default for CharNode {
@@ -231,10 +228,14 @@ impl Default for CharNode {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct INode {
     pub state: INodeState,
-    pub text: Vec<CharNode>, // 文字节点
-    pub char_index: usize,   // 如果是图文混排，代表在Vec<CharNode>中的位置
-    pub scale: f32,          // 文字布局的缩放值， 放到其它地方去？TODO
-    pub is_sample: bool,     // 是否进行简单布局
+    // 文字节点
+    pub text: Vec<CharNode>, 
+    // 如果是图文混排，代表在Vec<CharNode>中的位置
+    pub char_index: usize,   
+    // 文字布局的缩放值， 放到其它地方去？TODO
+    pub scale: f32,          
+    // 是否进行简单布局
+    pub is_sample: bool,     
 }
 
 impl INode {
@@ -309,84 +310,115 @@ impl INode {
     }
 }
 
-// impl Default for LayoutR {
-//     fn default() -> LayoutR {
-//         LayoutR {
-//             rect: Rect {
-//                 left: 0.0,
-//                 right: 0.0,
-//                 top: 0.0,
-//                 bottom: 0.0,
-//             },
-//             border: Rect {
-//                 left: 0.0,
-//                 right: 0.0,
-//                 top: 0.0,
-//                 bottom: 0.0,
-//             },
-//             padding: Rect {
-//                 left: 0.0,
-//                 right: 0.0,
-//                 top: 0.0,
-//                 bottom: 0.0,
-//             },
-//         }
-//     }
-// }
 
-// impl LayoutR {
-//     // 从LayoutR上获得节点的内容区大小
-//     pub(crate) fn get_content_size(&self) -> (f32, f32) {
-//         (
-//             self.rect.right
-//                 - self.rect.left
-//                 - self.border.left
-//                 - self.border.right
-//                 - self.padding.left
-//                 - self.padding.right,
-//             self.rect.bottom
-//                 - self.rect.top
-//                 - self.border.top
-//                 - self.border.bottom
-//                 - self.padding.top
-//                 - self.padding.bottom,
-//         )
-//     }
+// pub(crate) fn get_content_size<T: LayoutR>(l: &T) -> Size<f32> {
+//     Size::new(
+//         l.rect().right
+//             - l.rect().left
+//             - l.border().left
+//             - l.border().right
+//             - l.padding().left
+//             - l.padding().right,
+//         l.rect().bottom
+//             - l.rect().top
+//             - l.border().top
+//             - l.border().bottom
+//             - l.padding().top
+//             - l.padding().bottom,
+//     )
 // }
-
-pub(crate) fn get_content_size<T: LayoutR>(l: &T) -> (f32, f32) {
-    (
-        l.rect().right
-            - l.rect().left
-            - l.border().left
-            - l.border().right
-            - l.padding().left
-            - l.padding().right,
-        l.rect().bottom
-            - l.rect().top
-            - l.border().top
-            - l.border().bottom
-            - l.padding().top
-            - l.padding().bottom,
-    )
+/// 获得相对定位节点对应的包含块containing block的大小及位置， 由内容区（content box）的边缘组成
+pub(crate) fn rel_containing_block_size<T: LayoutR>(l: &T) -> Size<f32> {
+    Size::new(l.rect().right - l.border().right - l.padding().right - l.rect().left - l.border().left - l.padding().left,
+    l.rect().bottom - l.border().bottom - l.padding().bottom - l.rect().top - l.border().top- l.padding().top)
+}
+/// https://developer.mozilla.org/zh-CN/docs/Web/CSS/Containing_block
+/// 获得节点对应的包含块containing block，绝对定位节点由父内边距区（padding box）的边缘组成， 相对定位节点由父内容区（content box）的边缘组成
+pub(crate) fn abs_containing_block_size<T: LayoutR>(l: &T) -> Size<f32> {
+    Size::new(l.rect().right - l.border().right - l.rect().left - l.border().left,
+    l.rect().bottom - l.border().bottom - l.rect().top - l.border().top)
 }
 
 // 计算时使用的临时数据结构
 struct Cache<K> {
-    // size: Size<Number>,
-    size1: (f32, f32), // 布局容器的 最小大小
-    main: Number, // 主轴的大小, 用于约束换行，该值需要参考节点设置的width或height，以及max_width或max_height, 如果都未设置，则该值为无穷大
-    cross: Number, // 交叉轴的大小
-    main_line: f32, // 主轴的大小, 用于判断是否折行
-
-    main_value: f32, // 主轴的像素大小，该值需要参考width或height，以及min_width或min_height，用于子节点未将该节点撑得更大时，节点的主轴布局结果
-    cross_value: f32, // 交叉轴的像素大小，该值需要参考width或height，以及min_width或min_height，用于子节点未将该节点撑得更大时，节点的交叉轴布局结果
-
-    state: INodeState, // 统计子节点的 ChildrenAbs ChildrenNoAlignSelf ChildrenIndex
-
+    border_gap_size: Size<f32>,
+    padding_gap_size: Size<f32>,
+    // 布局容器的 最小大小
+    min_size: Size<f32>, 
+    // 主轴的大小, 用于约束换行，该值需要参考节点设置的width或height，以及max_width或max_height, 如果都未设置，则该值为无穷大
+    main: Number, 
+    // 交叉轴的大小
+    cross: Number, 
+    // 主轴的大小, 用于判断是否折行
+    main_line: f32, 
+    // 主轴的像素大小，该值需要参考width或height，以及min_width或min_height，用于子节点未将该节点撑得更大时，节点的主轴布局结果
+    main_value: f32, 
+    // 交叉轴的像素大小，该值需要参考width或height，以及min_width或min_height，用于子节点未将该节点撑得更大时，节点的交叉轴布局结果
+    cross_value: f32, 
+    // 统计子节点的 ChildrenAbs ChildrenNoAlignSelf ChildrenIndex 的数量
+    state: INodeState, 
+    // 如果需要排序，则使用堆排序
     heap: SimpleHeap<OrderSort<K>>,
-    temp: Temp<K>, // 缓存的子节点数组
+    /// 缓存的子节点数组
+    temp: TempNode<K>,
     vnode: Vec<K>,
+}
+
+impl<K> Cache<K> {
+    fn new(
+        border_gap_size: Size<f32>,
+        padding_gap_size: Size<f32>,
+        flex: ContainerStyle,
+        size: Size<Number>,
+        min_size: Size<Number>,
+        max_size: Size<Number>,
+    ) -> Self {
+        // 计算主轴和交叉轴，及大小
+        let row = flex.flex_direction == FlexDirection::Row
+            || flex.flex_direction == FlexDirection::RowReverse;
+        let (main, cross, max_main, min_main, min_cross) = if row {
+            (
+                size.width,
+                size.height,
+                max_size.width,
+                min_size.width,
+                min_size.height,
+            )
+        } else {
+            (
+                size.height,
+                size.width,
+                max_size.height,
+                min_size.height,
+                min_size.width,
+            )
+        };
+        let m = if flex.flex_wrap == FlexWrap::NoWrap {
+            std::f32::INFINITY
+        } else {
+            max_calc(main, max_main).or_else(std::f32::INFINITY)
+        };
+        unsafe { PP += 1 };
+        Cache {
+            border_gap_size,
+            padding_gap_size,
+            min_size: Size::new(min_size.width.or_else(0.0), min_size.height.or_else(0.0)),
+            main,
+            cross,
+            main_line: m,
+            main_value: min_main.or_else(0.0),
+            cross_value: min_cross.or_else(0.0),
+            state: INodeState::new(
+                INodeStateType::ChildrenAbs as usize
+                    + INodeStateType::ChildrenRect as usize
+                    + INodeStateType::ChildrenNoAlignSelf as usize
+                    + INodeStateType::ChildrenIndex as usize,
+            ),
+            heap: SimpleHeap::new(Ordering::Less),
+            temp: TempNode::<K>::new(flex, row),
+            vnode: Vec::new(),
+        }
+    }
 }
 
 impl<K: Null + Clone> Cache<K> {
@@ -453,8 +485,10 @@ impl<K: Null + Clone> Cache<K> {
                 cross_d: Dimension::Points(cross_d),
                 line_start_margin_zero: true,
                 breakline: char_node.ch == char::from('\n'),
-                // min_main: Number::Undefined,
-                // max_main: Number::Undefined,
+                min_main: Number::Undefined,
+                max_main: Number::Undefined,
+                main_result: 0.0,
+                main_result_maybe_ok: false,
             };
             let start = info.margin_main_start.or_else(0.0);
             let end = info.margin_main_end.or_else(0.0);
@@ -468,7 +502,7 @@ impl<K: Null + Clone> Cache<K> {
             info.margin_main = start + end;
             line.main += info.main + line_start + end;
 			
-            self.add_vec(line, 0, info, TempType::CharIndex(char_index));
+            self.add_vec(line, 0, info, TempNodeType::CharIndex(char_index));
             // 判断是否为单词容器
             if char_node.ch == char::from(0) {
                 char_index += char_node.count;
@@ -483,7 +517,7 @@ impl<K: Null + Clone> Cache<K> {
         line: &mut LineInfo,
         _order: isize,
         info: RelNodeInfo<K>,
-        temp: TempType<K>,
+        temp: TempNodeType<K>,
     ) {
         //out_any!(log::trace, "add info:{:?}", info);
         line.add(self.main_line, &info);
@@ -495,28 +529,34 @@ impl<K: Null + Clone> Cache<K> {
         line: &mut LineInfo,
         order: isize,
         info: RelNodeInfo<K>,
-        temp: TempType<K>,
+        temp: TempNodeType<K>,
     ) {
         line.add(self.main_line, &info);
         self.heap
             .push(OrderSort(order, self.heap.len(), info, temp));
     }
 }
+
+/// 临时节点类型
 #[derive(Clone, PartialEq, PartialOrd, Debug)]
-enum TempType<K> {
+enum TempNodeType<K> {
+    /// 固定大小节点
     None,
-    Ok,
-    R(Temp<K>),
+    /// Auto大小并已经计算完的节点
+    AutoOk,
+    /// Auto节点的临时节点信息及子节点数组
+    R(TempNode<K>),
+    /// 字符索引
     CharIndex(usize),
 }
-impl<K> Default for TempType<K> {
+impl<K> Default for TempNodeType<K> {
     fn default() -> Self {
-        TempType::None
+        TempNodeType::None
     }
 }
 // 排序节点
 #[derive(Default, Clone, Debug)]
-struct OrderSort<K>(isize, usize, RelNodeInfo<K>, TempType<K>); // (order, index, Info, temp)
+struct OrderSort<K>(isize, usize, RelNodeInfo<K>, TempNodeType<K>); // (order, index, Info, temp)
 impl<K> Ord for OrderSort<K> {
     fn cmp(&self, other: &Self) -> Ordering {
         if self.0 > other.0 {
@@ -556,59 +596,72 @@ impl<K> PartialEq for OrderSort<K> {
 }
 impl<K> Eq for OrderSort<K> {}
 
-//临时缓存的节点样式、大小和子节点数组
+/// 临时缓存节点的样式、大小和子节点数组
 #[derive(Clone, PartialEq, PartialOrd, Debug)]
-struct Temp<K> {
+struct TempNode<K> {
     flex: ContainerStyle,
-    row: bool,
     abs_vec: Vec<(K, K, K, INodeState, bool)>, // (id, children_head, children_tail, state, is_text) 绝对定位的子节点数组
-    rel_vec: Vec<(RelNodeInfo<K>, TempType<K>)>, // 相对定位的子节点数组
+    rel_vec: Vec<(RelNodeInfo<K>, TempNodeType<K>)>, // 相对定位的子节点数组
+    row: bool,
     children_percent: bool,                    // 子节点是否有百分比宽高
 }
 
-impl<K> Default for Temp<K> {
+impl<K> Default for TempNode<K> {
     fn default() -> Self {
         Self {
             flex: ContainerStyle::default(),
-            row: Default::default(),
             abs_vec: Vec::new(), // (id, children_head, children_tail, state, is_text) 绝对定位的子节点数组
             rel_vec: Vec::new(), // 相对定位的子节点数组
+            row: Default::default(),
             children_percent: false,
         }
     }
 }
-// //容器样式
-// #[derive(Default, Clone, PartialEq, PartialOrd, Debug)]
-// pub(crate) struct ContainerStyle {
-//     pub(crate) flex_direction: FlexDirection,
-//     pub(crate) flex_wrap: FlexWrap,
-//     pub(crate) justify_content: JustifyContent,
-//     pub(crate) align_items: AlignItems,
-//     pub(crate) align_content: AlignContent,
-// }
-//相对定位下缓存的节点信息
+
+
+/// 相对定位下缓存的节点信息
 #[derive(Default, Clone, PartialEq, PartialOrd, Debug)]
-struct RelNodeInfo<K> {
+pub(crate) struct RelNodeInfo<K> {
     id: K,
-    grow: f32,                    // 节点grow的值
-    shrink: f32,                  // 节点shrink的值
-    main: f32,                    // 节点主轴尺寸(受basis影响), 与父的flex方向有关
-    cross: f32,                   // 节点交叉轴尺寸， 与父的flex方向有关
-    margin_main: f32,             // 节点主轴方向 margin_start margin_end的大小
-    margin_main_start: Number,    // 节点主轴方向 margin_start的大小
-    margin_main_end: Number,      // 节点主轴方向 margin_end的大小
-    margin_cross_start: Number,   // 节点交叉轴方向 margin_start的大小
-    margin_cross_end: Number,     // 节点交叉轴方向 margin_end的大小
-    align_self: AlignSelf,        // 节点的align_self
-    main_d: Dimension,            // 节点主轴大小
-    cross_d: Dimension,           // 节点交叉轴大小
-    line_start_margin_zero: bool, // 如果该元素为行首，则margin_start为0
-    breakline: bool,              // 强制换行
-                                  // min_main: Number,  //主轴最小尺寸
-                                  // max_main: Number, // 主轴最大尺寸
+    // 节点交叉轴尺寸， 与父的flex方向有关
+    cross: f32,                   
+    // 节点主轴方向 margin_start margin_end的大小
+    margin_main: f32,             
+    // 节点主轴方向 margin_start的大小
+    margin_main_start: Number,    
+    // 节点主轴方向 margin_end的大小
+    margin_main_end: Number,      
+    // 节点交叉轴方向 margin_start的大小
+    margin_cross_start: Number,   
+    // 节点交叉轴方向 margin_end的大小
+    margin_cross_end: Number,     
+    // 节点的align_self
+    align_self: AlignSelf,        
+    // 节点主轴大小
+    main_d: Dimension,            
+    // 节点交叉轴大小
+    cross_d: Dimension,           
+    // 如果该元素为行首，则margin_start为0
+    line_start_margin_zero: bool, 
+    // 强制换行
+    breakline: bool,              
+    // 节点grow的值
+    pub(crate) grow: f32,     
+    // 节点shrink的值               
+    pub(crate) shrink: f32,    
+    // 节点主轴尺寸(受basis影响), 与父的flex方向有关              
+    pub(crate) main: f32,                    
+    //主轴最小尺寸
+    pub(crate) min_main: Number,               
+    // 主轴最大尺寸
+    pub(crate) max_main: Number,               
+    // 主轴的计算结果
+    pub(crate) main_result: f32,               
+    // 主轴的计算结果是否有效
+    pub(crate) main_result_maybe_ok: bool,      
 }
 
-// 计算时统计的行信息
+/// 计算时统计的行信息
 #[derive(Default, Clone, PartialEq, PartialOrd, Debug)]
 struct LineInfo {
     main: f32,            // 行内节点主轴尺寸的总值，不受basis影响
@@ -616,7 +669,7 @@ struct LineInfo {
     item: LineItem,       // 当前计算的行margin_auto
     items: Vec<LineItem>, // 已计算的行
 }
-//行信息中每行条目
+/// 行信息中每行条目
 #[derive(Default, Clone, PartialEq, PartialOrd, Debug)]
 struct LineItem {
     count: usize,       // 行内节点总数量
@@ -625,6 +678,7 @@ struct LineItem {
     margin_auto: usize, // 行内节点主轴方向 margin=auto 的数量
     main: f32,          // 行内节点主轴尺寸的总值（包括size margin）
     cross: f32,         // 行内节点交叉轴尺寸的最大值
+    // grow_shrink_context: GrowShrinkContext, // 行内节点grow shrink的上下文
 }
 
 impl LineItem {
@@ -663,64 +717,9 @@ impl LineItem {
     }
 }
 
-impl<K> Cache<K> {
-    fn new(
-        flex: ContainerStyle,
-        size: Size<Number>,
-        min_size: Size<Number>,
-        max_width: Number,
-        max_height: Number,
-    ) -> Self {
-        // 计算主轴和交叉轴，及大小
-        let row = flex.flex_direction == FlexDirection::Row
-            || flex.flex_direction == FlexDirection::RowReverse;
-        let (main, cross, max_main, min_main, min_cross) = if row {
-            (
-                size.width,
-                size.height,
-                max_width,
-                min_size.width,
-                min_size.height,
-            )
-        } else {
-            (
-                size.height,
-                size.width,
-                max_height,
-                min_size.height,
-                min_size.width,
-            )
-        };
-        let m = if flex.flex_wrap == FlexWrap::NoWrap {
-            std::f32::INFINITY
-        } else {
-            max_calc(main, max_main).or_else(std::f32::INFINITY)
-        };
-        unsafe { PP += 1 };
-        Cache {
-            // size,
-            size1: (min_size.width.or_else(0.0), min_size.height.or_else(0.0)),
-            main,
-            cross,
-            main_line: m,
-            main_value: min_main.or_else(0.0),
-            cross_value: min_cross.or_else(0.0),
-            state: INodeState::new(
-                INodeStateType::ChildrenAbs as usize
-                    + INodeStateType::ChildrenRect as usize
-                    + INodeStateType::ChildrenNoAlignSelf as usize
-                    + INodeStateType::ChildrenIndex as usize,
-            ),
-            heap: SimpleHeap::new(Ordering::Less),
-            temp: Temp::<K>::new(flex, row),
-            vnode: Vec::new(),
-        }
-    }
-}
-
-impl<K> Temp<K> {
+impl<K> TempNode<K> {
     fn new(flex: ContainerStyle, row: bool) -> Self {
-        Temp {
+        TempNode {
             flex,
             row,
             abs_vec: Vec::new(),
@@ -859,6 +858,38 @@ where
     I: IndexMut<K, Output = INode>,
     R: GetMut<K, Target = LR>,
 {
+    // 每个子节点根据 justify-content align-items align-self，来计算main cross的位置和大小
+    pub fn item_calc(
+        &mut self,
+        temp: &mut TempNode<K>,
+        start: &mut usize,
+        end: usize,
+        content_box_size: Size<f32>,
+        cross_start: f32,
+        cross_end: f32,
+        mut pos: f32,
+        split: f32,
+        calc: fn(info: &RelNodeInfo<K>, per: f32, pos: &mut f32) -> (f32, f32),
+    ) {
+        if temp.row {
+            while *start < end {
+                let (info, temp_type) = unsafe { temp.rel_vec.get_unchecked_mut(*start) };
+                *start += 1;
+                let main = calc(info, split, &mut pos);
+                let cross = cross_calc(info, cross_start, cross_end, temp.flex.align_items);
+                self.layout_temp_node(info.id, main, cross, temp_type, content_box_size);
+            }
+        } else {
+            while *start < end {
+                let (info, temp_type) = unsafe { temp.rel_vec.get_unchecked_mut(*start) };
+                *start += 1;
+                let main = calc(info, split, &mut pos);
+                let cross = cross_calc(info, cross_start, cross_end, temp.flex.align_items);
+                self.layout_temp_node(info.id, cross, main, temp_type, content_box_size);
+            }
+        }
+    }
+
     /// 绝对定位下的布局，如果size=auto， 会先调用子节点的布局
     pub(crate) fn abs_layout(
         &mut self,
@@ -867,14 +898,15 @@ where
         child_head: K,
         child_tail: K,
         state: INodeState,
-        parent_size: (f32, f32),
+        containing_block_size: Size<f32>,
         flex: &ContainerStyle,
     ) {
         let style = &self.style.get(id);
-        out_any!(log::trace, "abs_layout, id:{:?}, parent_size: {:?}, style: {:?}, display: {:?}", id, parent_size, style, style.display());
+        out_any!(log::trace, "abs_layout, id:{:?}, containing_block: {:?}, style: {:?}, display: {:?}", id, containing_block_size, style, style.display());
         if style.display() == Display::None {
             return;
         }
+        // 判断是否宽高居中
 		let a1 = if JustifyContent::Center == flex.justify_content {
 			0
 		} else if JustifyContent::FlexEnd == flex.justify_content {
@@ -898,42 +930,40 @@ where
 		if flex.flex_wrap == FlexWrap::WrapReverse {
 			a2 = -a2;
 		}
-
-        let (walign, halign) = if flex.flex_direction == FlexDirection::Row
-            || flex.flex_direction == FlexDirection::RowReverse
-        {
+        // 根据行方向调整对齐方向
+        let (walign, halign) = if flex.flex_direction.is_row() {
             (a1, a2)
         } else {
             (a2, a1)
         };
-
-        let mut w = calc_rect(
+        let (min_width, max_width, min_height, max_height) = (
+            calc_number(style.min_width(), containing_block_size.width),
+            calc_number(style.max_width(), containing_block_size.width),
+            calc_number(style.min_height(), containing_block_size.height),
+            calc_number(style.max_height(), containing_block_size.height),
+        );
+        // 计算大小和位置
+        let (w, x) = calc_rect(
             style.position_left(),
             style.position_right(),
-            style.width(),
+            calc_length(calc_number(style.width(), containing_block_size.width), min_width, max_width),
             style.margin_left(),
             style.margin_right(),
-            parent_size.0,
-            state.children_abs(),
+            containing_block_size.width,
+            containing_block_size.width,
             walign,
         );
-        let mut h = calc_rect(
+        let (h, y) = calc_rect(
             style.position_top(),
             style.position_bottom(),
-            style.height(),
+            calc_length(calc_number(style.height(), containing_block_size.height), min_height, max_height),
             style.margin_top(),
             style.margin_bottom(),
-            parent_size.1,
-            state.children_abs(),
+            containing_block_size.height,
+            containing_block_size.width,
             halign,
         );
 
-        let (min_width, max_width, min_height, max_height) = (
-            calc_number(style.min_width(), parent_size.0),
-            calc_number(style.max_width(), parent_size.0),
-            calc_number(style.min_height(), parent_size.1),
-            calc_number(style.max_height(), parent_size.1),
-        );
 		out_any!(
             log::trace,
             "abs_layout, id:{:?} size:{:?} walign: {:?}, halign: {:?} position:{:?}, margin: {:?}, flex_direction {:?}, w: {:?}, h: {:?}",
@@ -948,30 +978,24 @@ where
 			h
         );
 
-        if w.0 == Number::Undefined || h.0 == Number::Undefined {
+        if w == Number::Undefined || h == Number::Undefined {
             // 根据子节点计算大小
             let direction = style.direction();
             let pos = style.position();
             let margin = style.margin();
             let border = style.border();
             let padding = style.padding();
-            let ww = style.calc_horizontal_content_size(w.0);
-            let hh = style.calc_vertical_content_size(h.0);
+
             let mut cache = Cache::new(
+                calc_gap_by_containing_block(&containing_block_size, &border).gap_size(),
+                calc_gap_by_containing_block(&containing_block_size, &padding).gap_size(),
                 style.container_style(),
-                Size {
-                    width: ww,
-                    height: hh,
-                },
-                Size {
-                    width: calc_length(ww, min_width),
-                    height: calc_length(hh, min_height),
-                },
-                style.calc_horizontal_content_size(max_width),
-                style.calc_vertical_content_size(max_height),
+                Size::new(calc_length(w, min_width, max_width), calc_length(h, min_height, max_height)),
+                Size::new(min_width, min_height),
+                Size::new(max_width, max_height),
             );
 
-            let (ww, hh, _r) = self.auto_layout(
+            let (size, _r) = self.auto_children_layout(
                 &mut cache,
                 true,
                 id,
@@ -980,29 +1004,27 @@ where
                 child_tail,
                 state.children_index(),
                 direction,
-                &border,
-                &padding,
             );
-            out_any!(log::trace, "calc_rect: id: {:?}, hh:{:?}", id, hh);
+            out_any!(log::trace, "calc_rect: id: {:?}, size:{:?}", id, size);
             // 再次计算区域
-            w = calc_rect(
+            let (w, x) = calc_rect(
                 pos.left,
                 pos.right,
-                Dimension::Points(ww),
+                Number::Defined(size.width),
                 margin.left,
                 margin.right,
-                parent_size.0,
-                false,
+                containing_block_size.width,
+                containing_block_size.width,
                 walign,
             );
-            h = calc_rect(
+            let (h, y) = calc_rect(
                 pos.top,
                 pos.bottom,
-                Dimension::Points(hh),
+                Number::Defined(size.height),
                 margin.top,
                 margin.bottom,
-                parent_size.1,
-                false,
+                containing_block_size.height,
+                containing_block_size.width,
                 halign,
             );
 
@@ -1013,36 +1035,31 @@ where
                 self.notify.clone(),
                 self.notify_arg,
                 id,
-                (w.1, h.1),
-                (
-                    min_max_calc(w.0.or_else(0.0), min_width, max_width),
-                    min_max_calc(h.0.or_else(0.0), min_height, max_height),
-                ),
+                containing_block_size,
+                true,
+                Rect::new(x, y, w.or_else(0.0), h.or_else(0.0)),
                 &border,
                 &padding,
             );
         } else {
-            let flex = style.container_style();
             self.set_layout(
                 id,
                 is_text,
                 child_head,
                 child_tail,
-                flex,
+                style.container_style(),
                 style.direction(),
                 style.border(),
                 style.padding(),
                 state,
-                (w.1, h.1),
-                (
-                    min_max_calc(w.0.or_else(0.0), min_width, max_width),
-                    min_max_calc(h.0.or_else(0.0), min_height, max_height),
-                ),
+                containing_block_size,
+                true,
+                Rect::new(x, y, w.or_else(0.0), h.or_else(0.0)),
             );
         };
     }
 
-    // 如果节点是相对定位，被设脏表示其修改的数据不会影响父节点的布局 则先检查自身的布局数据，然后修改子节点的布局数据
+    /// 如果节点是相对定位，被设脏表示其修改的数据不会影响父节点的布局 则先检查自身的布局数据，然后修改子节点的布局数据
     pub(crate) fn rel_layout(
         &mut self,
         id: K,
@@ -1050,42 +1067,40 @@ where
         child_head: K,
         child_tail: K,
         state: INodeState,
+        containing_block_size: Size<f32>,
     ) {
         let style = &self.style.get(id);
         out_any!(log::trace, "rel_layout, id:{:?}, style: {:?}, display: {:?}", id, style, style.display());
         if style.display() == Display::None {
             return;
         }
-        let flex = style.container_style();
-        let direction = style.direction();
-        let border = style.border();
-        let padding = style.padding();
         let rect = self.layout_map.get_mut(id).rect().clone();
         self.set_layout(
             id,
             is_text,
             child_head,
             child_tail,
-            flex,
-            direction,
-            border,
-            padding,
+            style.container_style(),
+            style.direction(),
+            style.border(),
+            style.padding(),
             state,
-            (rect.left, rect.top),
-            (rect.right - rect.left, rect.bottom - rect.top),
+            containing_block_size,
+            false,
+            rect,
         );
     }
-
-    fn layout_node(
+    /// 布局临时节点
+    fn layout_temp_node(
         &mut self,
         id: K,
         width: (f32, f32),
         height: (f32, f32),
-        temp: &mut TempType<K>,
-        parent_size: (f32, f32),
+        temp: &mut TempNodeType<K>,
+        containing_block_size: Size<f32>,
     ) {
         let i_node = &mut self.i_nodes[id];
-        if let TempType::CharIndex(r) =  temp {
+        if let TempNodeType::CharIndex(r) =  temp {
 			// 文字布局
 			let cnode = &mut i_node.text[*r];
 			cnode.pos = Rect {
@@ -1112,6 +1127,7 @@ where
         let direction = s.direction();
         let border = s.border();
         let padding = s.padding();
+        let is_abs = i_node.state.abs();
         let (child_head, child_tail) = self
             .tree
             .get_down(id)
@@ -1124,17 +1140,17 @@ where
         let x = calc_pos(
             s.position_left(),
             s.position_right(),
-            parent_size.0,
+            containing_block_size.width,
             width.0,
         );
         let y = calc_pos(
             s.position_top(),
             s.position_bottom(),
-            parent_size.1,
+            containing_block_size.height,
             height.0,
         );
         // 设置布局的值
-        if let TempType::R(t) = temp {
+        if let TempNodeType::R(t) = temp {
 			// 有Auto的节点需要父确定大小，然后自身的temp重计算及布局
 			let mut layout = self.layout_map.get_mut(id);
 			set_layout_result(
@@ -1142,17 +1158,19 @@ where
 				self.notify,
 				self.notify_arg,
 				id,
-				(x, y),
-				(width.1, height.1),
+                containing_block_size,
+                is_abs,
+				Rect::new(x, y, width.1, height.1),
 				&border,
 				&padding,
 			);
-			let s = get_content_size(&mut layout);
-			let mc = t.main_cross(s.0, s.1);
+			let padding_box_size = abs_containing_block_size(&layout);
+			let content_box_size = rel_containing_block_size(&layout);
+			let mc = t.main_cross(content_box_size.width, content_box_size.height);
 			let line = t.reline(mc.0, mc.1);
 			// 如果有临时缓存子节点数组
-			self.temp_layout(t, s, mc.0, mc.1, &line);
-		} else if let TempType::None = temp {
+			self.temp_line_layout(t, padding_box_size, Size::new(mc.0, mc.1), mc.0, mc.1, &line);
+		} else if let TempNodeType::None = temp {
 			// 确定大小的节点，需要进一步布局
 			let is_text = i_node.text.len() > 0 && !state.vnode(); //i_node.text.len() > 0 && !state.vnode();
 			self.set_layout(
@@ -1165,8 +1183,9 @@ where
 				border,
 				padding,
 				state,
-				(x, y),
-				(width.1, height.1),
+                containing_block_size,
+                is_abs,
+				Rect::new(x, y, width.1, height.1),
 			);
 		} else {
 			// 有Auto的节点在计算阶段已经将自己的子节点都布局了，节点自身等待确定位置
@@ -1176,28 +1195,29 @@ where
 				self.notify,
 				self.notify_arg,
 				id,
-				(x, y),
-				(width.1, height.1),
+                containing_block_size,
+                is_abs,
+				Rect::new(x, y, width.1, height.1),
 				&border,
 				&padding,
 			);
         }
     }
 
-    // 自动布局，计算宽高， 如果is_notify则返回Temp(宽度或高度auto、宽度或高度undefined的节点会进入此方法)
-    fn auto_layout(
+    // 自动布局，计算宽高， 如果is_fix为false则返回Temp。宽度或高度auto、宽度或高度undefined的节点会进入此方法
+    fn auto_children_layout(
         &mut self,
         cache: &mut Cache<K>,
-        is_notify: bool,
+        is_fix: bool, // 自身节点是否为固定大小,
         id: K,
         is_text: bool,
         child_head: K,
         child_tail: K,
         children_index: bool,
         direction: Direction,
-        border: &Rect<Dimension>,
-        padding: &Rect<Dimension>,
-    ) -> (f32, f32, TempType<K>) {
+        // border: &Rect<Dimension>,
+        // padding: &Rect<Dimension>,
+    ) -> (Size<f32>, TempNodeType<K>) {
         out_any!(
             log::trace,
             "{:?}auto_layout1: id:{:?} head:{:?} tail:{:?} is_notify:{:?}",
@@ -1205,11 +1225,11 @@ where
             id,
             child_head,
             child_tail,
-            is_notify
+            is_fix
         );
         self.do_layout(
             cache,
-            is_notify,
+            is_fix,
             id,
             is_text,
             child_head,
@@ -1227,16 +1247,17 @@ where
         );
         let (w, h) = cache.temp.main_cross(cache.main_value, cache.cross_value);
         (
-            calc_size_from_content(w, border.left, border.right, padding.left, padding.right),
-            calc_size_from_content(h, border.top, border.bottom, padding.top, padding.bottom),
-            if is_notify {
-                TempType::Ok
+            // 按照盒子模型， 返回宽高，该宽高包括了边框和空白
+            Size::new(w, h) + cache.border_gap_size + cache.padding_gap_size,
+            if is_fix {
+                TempNodeType::AutoOk
             } else {
                 // 则将布局的中间数组暂存下来
-                TempType::R(replace(&mut cache.temp, Temp::default()))
+                TempNodeType::R(replace(&mut cache.temp, TempNode::default()))
             },
         )
     }
+    /// 分文字和非文字情况，非文字则先统计行信息。is_notify为true时，则进行计算最终布局大小
     fn do_layout(
         &mut self,
         cache: &mut Cache<K>,
@@ -1263,7 +1284,7 @@ where
 			let style = self.style.get(id);
             cache.text_layout(id, &mut i_node.text, &mut line, style.overflow_wrap());
         } else {
-            self.node_layout(
+            self.children_layout(
                 cache,
                 is_notify && cache.main.is_defined() && cache.cross.is_defined(),
                 &mut line,
@@ -1313,9 +1334,11 @@ where
         // 根据is_notify决定是否继续计算
         if is_notify {
             let m_c = cache.temp.main_cross(cache.main_value, cache.cross_value);
-            self.temp_layout(
+            let size = Size::new(m_c.0, m_c.1);
+            self.temp_line_layout(
                 &mut cache.temp,
-                m_c,
+                size + cache.padding_gap_size,
+                size,
                 cache.main_value,
                 cache.cross_value,
                 &line,
@@ -1330,8 +1353,8 @@ where
         }
     }
 
-    // 节点的flex布局
-    fn node_layout(
+    // 子节点布局，如果is_notify，并且子节点是绝对定位，则直接布局。 否则统计行信息
+    fn children_layout(
         &mut self,
         cache: &mut Cache<K>,
         is_notify: bool,
@@ -1341,6 +1364,8 @@ where
         direction: Direction,
     ) {
         // LayoutKey { entity: Id(LocalVersion(21474836532)), text_index: 18446744073709551615 }
+        let padding_box_size = cache.min_size - cache.border_gap_size;
+        let content_box_size = cache.min_size - cache.border_gap_size - cache.padding_gap_size;
         while !child.is_null() {
             let (next, prev) = self
                 .tree
@@ -1372,7 +1397,7 @@ where
                         child_head,
                         child_tail,
                         state,
-                        cache.size1,
+                        padding_box_size,
                         &cache.temp.flex,
                     );
                 } else {
@@ -1417,7 +1442,7 @@ where
                 } else {
                     child_tail
                 };
-                self.node_layout(cache, is_notify, line, child, children_index, direction);
+                self.children_layout(cache, is_notify, line, child, children_index, direction);
                 cache.vnode.push(id);
                 if is_notify {
                 	self.notify.clone()(self.notify_arg, id, &mut self.layout_map.get_mut(id));
@@ -1432,18 +1457,19 @@ where
                 cache.state.children_no_align_self_false();
             }
             // flex布局时， 如果子节点的宽高未定义，则根据子节点的布局进行计算。如果子节点的宽高为百分比，并且父节点对应宽高未定义，则为0
-            let w = calc_number(style.width(), cache.size1.0);
-            let h = calc_number(style.height(), cache.size1.1);
-            out_any!(log::trace, "id: {:?}, parent_size:{:?}", id, cache.size1);
+            let w = calc_number(style.width(), content_box_size.width);
+            let h = calc_number(style.height(), content_box_size.height);
+            out_any!(log::trace, "id: {:?}, parent_size:{:?}", id, cache.min_size);
             let basis = style.flex_basis();
             let (main_d, cross_d) = cache.temp.main_cross(style.width(), style.height());
 
             let (min_width, max_width, min_height, max_height) = (
-                calc_number(style.min_width(), cache.main_value),
-                calc_number(style.max_width(), cache.main_value),
-                calc_number(style.min_height(), cache.cross_value),
-                calc_number(style.max_height(), cache.cross_value),
+                calc_number(style.min_width(), content_box_size.width),
+                calc_number(style.max_width(), content_box_size.width),
+                calc_number(style.min_height(), content_box_size.height),
+                calc_number(style.max_height(), content_box_size.height),
             );
+
             let (max_main, max_cross) = cache.temp.main_cross(max_width, max_height);
             let (min_main, min_cross) = cache.temp.main_cross(min_width, min_height);
             let margin = cache.temp.main_cross(
@@ -1471,12 +1497,13 @@ where
                 cross_d: cross_d,
                 line_start_margin_zero: i_node.state.line_start_margin_zero(),
                 breakline: i_node.state.breakline(),
-                // min_main: min_main,
-                // max_main: max_main,
+                min_main: min_main,
+                max_main: max_main,
+                main_result: 0.0,
+                main_result_maybe_ok: false,
             };
             let temp = if w == Number::Undefined || h == Number::Undefined {
                 // 需要计算子节点大小
-                let flex = style.container_style();
                 let direction = style.direction();
                 let border = style.border();
                 let padding = style.padding();
@@ -1488,7 +1515,7 @@ where
                         && style.flex_grow() == 0.0
                         && style.flex_shrink() == 0.0;
                 }
-                //  交叉轴有2种情况后面可能会被改变大小
+                // 交叉轴有2种情况后面可能会被改变大小
                 if fix && cross_d.is_undefined() {
                     fix = style.align_self() != AlignSelf::Stretch
                         && cache.temp.flex.align_items != AlignItems::Stretch;
@@ -1504,34 +1531,14 @@ where
                 );
                 let n_children_index = i_node.state.children_index();
                 let is_text = i_node.text.len() > 0;
-                let w =
-                    calc_content_size(w, border.left, border.right, padding.left, padding.right);
-                let h =
-                    calc_content_size(h, border.top, border.bottom, padding.top, padding.bottom);
                 let mut cache_new = Cache::new(
-                    flex,
-                    Size {
-                        width: w,
-                        height: h,
-                    },
-                    Size {
-                        width: calc_length(w, min_width),
-                        height: calc_length(h, min_height),
-                    },
-                    calc_content_size(
-                        max_width,
-                        border.left,
-                        border.right,
-                        padding.left,
-                        padding.right,
-                    ),
-                    calc_content_size(
-                        max_height,
-                        border.top,
-                        border.bottom,
-                        padding.top,
-                        padding.bottom,
-                    ),
+                    calc_gap_by_containing_block(&content_box_size, &border).gap_size(),
+                    calc_gap_by_containing_block(&content_box_size, &padding).gap_size(),
+                    style.container_style(),
+                    Size::new(calc_length(w, min_width, max_width), calc_length(h, min_height, max_height)),
+                    Size::new(min_width, min_height),
+                    Size::new(max_width, max_height),
+        
                 );
                 out_any!(
                     log::trace,
@@ -1542,7 +1549,7 @@ where
                 // cache.main_line =
                 // max_calc(w, max_width);
                 // max_calc(h, max_height);
-                let (ww, hh, r) = self.auto_layout(
+                let (size, r) = self.auto_children_layout(
                     &mut cache_new,
                     fix,
                     id,
@@ -1551,17 +1558,17 @@ where
                     child_tail,
                     n_children_index,
                     direction,
-                    &border,
-                    &padding,
                 );
-                let mc = cache.temp.main_cross(ww, hh);
-                info.main = min_max_calc(mc.0, min_main, max_main);
-                info.cross = min_max_calc(mc.1, min_cross, max_cross);
+                let mc = cache.temp.main_cross(size.width, size.height);
+                info.main = mc.0;
+                info.cross = mc.1;
+                // info.main = min_max_calc(mc.0, min_main, max_main);
+                // info.cross = min_max_calc(mc.1, min_cross, max_cross);
                 r
             } else {
                 // 确定大小的节点， TempType为None
                 //out_any!(log::trace, "static size: id:{:?} size:{:?} next:{:?}", id, (w, h), child);
-                TempType::None
+                TempNodeType::None
             };
             let start = info.margin_main_start.or_else(0.0);
             let end = info.margin_main_end.or_else(0.0);
@@ -1608,17 +1615,17 @@ where
         child_tail: K,
         flex: ContainerStyle,
         direction: Direction,
-        border: Rect<Dimension>,
-        padding: Rect<Dimension>,
+        border: SideGap<Dimension>,
+        padding: SideGap<Dimension>,
         state: INodeState,
-        pos: (f32, f32),
-        size: (f32, f32),
+        containing_block_size: Size<f32>,
+        is_abs: bool,
+        rect: Rect<f32>,
     ) {
         out_any!(log::trace, 
-			"{:?}set_layout: pos:{:?} size:{:?} id:{:?} head:{:?} tail:{:?} children_dirty:{:?} self_dirty:{:?} children_rect:{:?} children_abs:{:?}",
+			"{:?}set_layout: containing_block_size:{:?} id:{:?} head:{:?} tail:{:?} children_dirty:{:?} self_dirty:{:?} children_rect:{:?} children_abs:{:?}",
 			ppp(),
-			pos,
-			size,
+            containing_block_size,
 			id,
 			child_head,
 			child_tail,
@@ -1627,63 +1634,55 @@ where
 			state.children_rect(),
 			state.children_abs()
 		);
-
         // 设置布局的值
         let mut layout = self.layout_map.get_mut(id);
         let r = if state.self_dirty()
-            || layout.rect().left != pos.0
-            || layout.rect().top != pos.1
-            || layout.rect().right - layout.rect().left != size.0
-            || layout.rect().bottom - layout.rect().top != size.1
+            || !eq_f32(layout.rect().left, rect.left)
+            || !eq_f32(layout.rect().right, rect.right)
+            || !eq_f32(layout.rect().top, rect.top)
+            || !eq_f32(layout.rect().bottom, rect.bottom)
         {
             set_layout_result(
                 &mut layout,
                 self.notify,
                 self.notify_arg,
                 id,
-                pos,
-                size,
+                containing_block_size,
+                is_abs,
+                rect,
                 &border,
                 &padding,
             )
         } else {
-            LayoutSize::None
+            false
         };
-        // 递归布局子节点
-        let rr = if state.children_dirty() {
-            get_content_size(&mut layout)
-        } else {
-            if let LayoutSize::Size(rr) = r {
-				if state.children_rect()
-					&& (state.children_abs()
-						|| (state.children_no_align_self()
-							&& (flex.flex_direction == FlexDirection::Row
-								|| flex.flex_direction == FlexDirection::Column)
-							&& flex.flex_wrap == FlexWrap::NoWrap
-							&& flex.justify_content == JustifyContent::FlexStart
-							&& flex.align_items == AlignItems::FlexStart))
-				{
-					// 节点的宽高变化不影响子节点的布局，还可进一步优化仅交叉轴大小变化
-					return;
-				}
-				rr
-            } else {
-				return;
-			}
-        };
+        // 如果子节点不脏， 则检查r及子节点状态，判断是否要递归布局子节点
+        if !state.children_dirty() {
+            if !r {
+                return;
+            }
+            if state.children_rect()
+                && (state.children_abs()
+                    || (state.children_no_align_self()
+                        && (flex.flex_direction == FlexDirection::Row
+                            || flex.flex_direction == FlexDirection::Column)
+                        && flex.flex_wrap == FlexWrap::NoWrap
+                        && flex.justify_content == JustifyContent::FlexStart
+                        && flex.align_items == AlignItems::FlexStart))
+            {
+                // 节点的宽高变化不影响子节点的布局，还可进一步优化仅交叉轴大小变化
+                return;
+            }
+        }
+        let size = rect.size();
         // 宽高变动重新布局
         let mut cache = Cache::new(
+            layout.border().gap_size(),
+            layout.padding().gap_size(),
             flex,
-            Size {
-                width: Number::Defined(rr.0),
-                height: Number::Defined(rr.1),
-            },
-            Size {
-                width: Number::Defined(rr.0),
-                height: Number::Defined(rr.1),
-            },
-            Number::Undefined,
-            Number::Undefined,
+            Size::new(Number::Defined(size.width), Number::Defined(size.height)),
+            Size::new(Number::Defined(size.width), Number::Defined(size.height)),
+            Size::new(Number::Undefined, Number::Undefined),
         );
         self.do_layout(
             &mut cache,
@@ -1697,26 +1696,27 @@ where
         );
     }
 
-    // 实际进行子节点布局
-    fn temp_layout(
+    /// 临时节点按行信息进行实际布局
+    fn temp_line_layout(
         &mut self,
-        temp: &mut Temp<K>,
-        size: (f32, f32),
+        temp: &mut TempNode<K>,
+        padding_box_size: Size<f32>,
+        content_box_size: Size<f32>,
         main: f32,
         cross: f32,
         line: &LineInfo,
     ) {
         out_any!(
             log::trace,
-            "{:?}layout: style:{:?} size:{:?} main_cross:{:?}",
+            "{:?}layout: style:{:?} content_box_size:{:?} main_cross:{:?}",
             ppp(),
             &temp.flex,
-            size,
+            content_box_size,
             (main, cross)
         );
         // 处理abs_vec
         for e in temp.abs_vec.iter() {
-            self.abs_layout(e.0, e.4, e.1, e.2, e.3, size, &temp.flex);
+            self.abs_layout(e.0, e.4, e.1, e.2, e.3, padding_box_size, &temp.flex);
         }
         let normal = temp.flex.flex_direction == FlexDirection::Row
             || temp.flex.flex_direction == FlexDirection::Column;
@@ -1730,7 +1730,7 @@ where
                 &line.item,
                 &mut start,
                 temp.rel_vec.len(),
-                size,
+                content_box_size,
                 0.0,
                 cross,
                 normal,
@@ -1807,7 +1807,7 @@ where
                             &item,
                             &mut start,
                             item.count,
-                            size,
+                            content_box_size,
                             cross_start,
                             cross_end,
                             normal,
@@ -1820,7 +1820,7 @@ where
                         &line.item,
                         &mut start,
                         line.item.count,
-                        size,
+                        content_box_size,
                         cross_start,
                         cross_end,
                         normal,
@@ -1844,7 +1844,7 @@ where
                 &item,
                 &mut start,
                 item.count,
-                size,
+                content_box_size,
                 cross_start,
                 cross_end,
                 normal,
@@ -1865,22 +1865,22 @@ where
             &line.item,
             &mut start,
             line.item.count,
-            size,
+            content_box_size,
             cross_start,
             cross_end,
             normal,
         );
     }
 
-    // 处理单行的节点布局
+    /// 处理单行的节点布局
     fn temp_single_line(
         &mut self,
-        temp: &mut Temp<K>,
+        temp: &mut TempNode<K>,
         main: f32,
         item: &LineItem,
         start: &mut usize,
         count: usize,
-        content_size: (f32, f32),
+        content_box_size: Size<f32>,
         cross_start: f32,
         cross_end: f32,
         normal: bool,
@@ -1890,10 +1890,10 @@ where
         }
         out_any!(
             log::trace,
-            "{:?}single_line: normal:{:?} content_size:{:?}, cross:{:?} start_end:{:?} main:{:?}",
+            "{:?}single_line: normal:{:?} content_box_size:{:?}, cross:{:?} start_end:{:?} main:{:?}",
             ppp(),
             normal,
-            content_size,
+            content_box_size,
             (cross_start, cross_end),
             (*start, count),
             (main, item.main)
@@ -1904,44 +1904,39 @@ where
             first.0.margin_main_start = Number::Defined(0.0);
         }
         let end = *start + count;
-        let mut pos = if normal { 0.0 } else { main };
+        let pos = if normal { 0.0 } else { main };
         // 浮点误差计算
         if main - item.main > EPSILON {
             // 表示需要放大
             if item.grow > 0.0 {
-                // grow 填充
+            // if item.grow_shrink_context.grow_weight > 0.0 {
+                    // grow 填充
                 let split = (main - item.main) / item.grow;
-                item_calc!(
-                    self,
+                self.item_calc(
                     temp,
                     start,
                     end,
-                    content_size,
+                    content_box_size,
                     cross_start,
                     cross_end,
-                    normal,
                     pos,
                     split,
-                    grow_calc,
-                    grow_calc_reverse
+                    if normal {grow_calc}else {grow_calc_reverse}
                 );
                 return;
             } else if item.margin_auto > 0 {
                 // margin_auto 填充
                 let split = (main - item.main) / item.margin_auto as f32;
-                item_calc!(
-                    self,
+                self.item_calc(
                     temp,
                     start,
                     end,
-                    content_size,
+                    content_box_size,
                     cross_start,
                     cross_end,
-                    normal,
                     pos,
                     split,
-                    margin_calc,
-                    margin_calc_reverse
+                    if normal {margin_calc}else {margin_calc_reverse}
                 );
                 return;
             }
@@ -1949,24 +1944,21 @@ where
             if item.shrink > 0.0 {
                 // 表示需要收缩
                 let split = (item.main - main) / item.shrink;
-                item_calc!(
-                    self,
+                self.item_calc(
                     temp,
                     start,
                     end,
-                    content_size,
+                    content_box_size,
                     cross_start,
                     cross_end,
-                    normal,
                     pos,
                     split,
-                    shrink_calc,
-                    shrink_calc_reverse
+                    if normal {shrink_calc}else {shrink_calc_reverse}
                 );
                 return;
             }
         }
-        let (mut pos, split) = match temp.flex.justify_content {
+        let (pos, split) = match temp.flex.justify_content {
             JustifyContent::FlexStart => {
                 if normal {
                     (0.0, 0.0)
@@ -2027,42 +2019,19 @@ where
             pos,
             split
         );
-        item_calc!(
-            self,
+        self.item_calc(
             temp,
             start,
             end,
-            content_size,
+            content_box_size,
             cross_start,
             cross_end,
-            normal,
             pos,
             split,
-            main_calc,
-            main_calc_reverse
+            if normal {main_calc}else {main_calc_reverse}
         );
     }
 }
-
-// // 绝对定位下的布局，如果size=auto， 会先调用子节点的布局
-// pub(crate) fn abs_layout<T>(
-//     tree: &IdTree<u32>,
-//     i_nodes: &mut impl IndexMut<usize, Output = INode>,
-//     rect_style_map: &impl Index<usize, Output = RectStyle>,
-//     other_style_map: &impl Index<usize, Output = OtherStyle>,
-//     layout_map: &mut impl IndexMut<usize, Output = LayoutR>,
-//     notify: fn(&mut T, usize, &LayoutR),
-//     notify_arg: &mut T,
-//     id: usize,
-//     is_text: bool,
-//     child_head: usize,
-//     child_tail: usize,
-//     state: INodeState,
-//     parent_size: (f32, f32),
-//     flex: &ContainerStyle,
-// ) {
-
-// }
 
 #[derive(PartialEq, Debug)]
 enum LayoutSize {
@@ -2070,54 +2039,38 @@ enum LayoutSize {
     Size((f32, f32)),
 }
 
-// 设置布局结果
+// 设置布局结果，返回是否变动两种内容区大小
 fn set_layout_result<T, K, L: LayoutR>(
     layout: &mut L,
     notify: fn(&mut T, K, &L),
     notify_arg: &mut T,
     id: K,
-    pos: (f32, f32),
-    size: (f32, f32),
-    border: &Rect<Dimension>,
-    padding: &Rect<Dimension>,
-) -> LayoutSize {
+    containing_block_size: Size<f32>,
+    is_abs: bool,
+    rect: Rect<f32>,
+    border: &SideGap<Dimension>,
+    padding: &SideGap<Dimension>,
+) -> bool {
     unsafe {
         PC += 1;
         PP = 0
     };
-    let old_rect = layout.rect().clone();
-    let old_w = old_rect.right
-        - layout.border().right
-        - layout.padding().right
-        - (old_rect.left + layout.border().left + layout.padding().left);
-    let old_h = old_rect.bottom
-        - layout.border().bottom
-        - layout.padding().bottom
-        - (old_rect.top + layout.border().top + layout.padding().top);
-    layout.set_rect(Rect {
-        left: pos.0,
-        top: pos.1,
-        right: pos.0 + size.0,
-        bottom: pos.1 + size.1,
-    });
-    layout.set_border(calc_border_padding(border, size.0, size.1));
-    layout.set_padding(calc_border_padding(padding, size.0, size.1));
+    let old_size = layout.rect().size();
+    let old_padding_box_size = old_size - layout.border().gap_size();
+    let old_content_box_size = old_padding_box_size - layout.padding().gap_size();
+    layout.set_absolute(is_abs);
+    layout.set_rect(rect);
+    layout.set_border(calc_gap_by_containing_block(&containing_block_size, border));
+    layout.set_padding(calc_gap_by_containing_block(&containing_block_size, padding));
     notify(notify_arg, id, layout);
     layout.set_finish();
-    let new_pos1 = (
-        layout.rect().left + layout.border().left + layout.padding().left,
-        layout.rect().top + layout.border().top + layout.padding().top,
-    );
-    let new_pos2 = (
-        layout.rect().right - layout.border().right - layout.padding().right,
-        layout.rect().bottom - layout.border().bottom - layout.padding().bottom,
-    );
-    let size = (new_pos2.0 - new_pos1.0, new_pos2.1 - new_pos1.1);
-    if eq_f32(size.0, old_w) && eq_f32(size.1, old_h) {
-        LayoutSize::None
-    } else {
-        LayoutSize::Size(size)
+    let size = layout.rect().size();
+    let padding_box_size = size - layout.border().gap_size();
+    if !(eq_f32(padding_box_size.width, old_padding_box_size.width) && eq_f32(padding_box_size.height, old_padding_box_size.height)) {
+        return true
     }
+    let content_box_size = padding_box_size - layout.padding().gap_size();
+    !(eq_f32(content_box_size.width, old_content_box_size.width) && eq_f32(content_box_size.height, old_content_box_size.height))
 }
 
 const EPSILON: f32 = std::f32::EPSILON * 1024.0;
@@ -2281,21 +2234,20 @@ fn align_stretch<K>(start: f32, end: f32, info: &RelNodeInfo<K>) -> (f32, f32) {
     (start + r, end - r - rr)
 }
 
+
 // 获得计算区域(大小和位置)， 大小为None表示自动计算
 fn calc_rect(
     start: Dimension,
     end: Dimension,
-    size: Dimension,
+    size: Number,
     margin_start: Dimension,
     margin_end: Dimension,
     parent: f32,
-    _children_abs: bool,
+    containing_block_width: f32,
     align: isize,
 ) -> (Number, f32) {
-	let calc_size = if let Dimension::Points(r) = size {
+	let calc_size = if let Number::Defined(r) = size {
 		r
-	} else if let Dimension::Percent(r) = size {
-		parent * r
 	} else {
 		// 通过明确的前后确定大小
 		let mut rr = if let Dimension::Points(rr) = start {
@@ -2306,9 +2258,9 @@ fn calc_rect(
 			return (
 				Number::Undefined,
 				if let Dimension::Points(rrr) = end {
-					parent - rrr - margin_end.resolve_value(parent)
+					parent - rrr - margin_end.resolve_value(containing_block_width)
 				} else if let Dimension::Percent(rrr) = end {
-					parent - parent * rrr - margin_end.resolve_value(parent)
+					parent - parent * rrr - margin_end.resolve_value(containing_block_width)
 				} else {
 					0.0
 				},
@@ -2319,11 +2271,11 @@ fn calc_rect(
 		} else if let Dimension::Percent(rrr) = end {
 			parent * rrr
 		} else {
-			return (Number::Undefined, margin_start.resolve_value(parent));
+			return (Number::Undefined, margin_start.resolve_value(containing_block_width));
 		};
 
-		rr += margin_start.resolve_value(parent);
-		rrr += margin_end.resolve_value(parent);
+		rr += margin_start.resolve_value(containing_block_width);
+		rrr += margin_end.resolve_value(containing_block_width);
 		return (Number::Defined(parent - rr - rrr), rr);
 	};
 
@@ -2341,39 +2293,28 @@ fn calc_rect(
 			if align == 0 {
 				// 居中对齐
 				let s = (parent - calc_size) * 0.5;
-				return calc_margin(s, s + calc_size, calc_size, margin_start, margin_end, parent);
+				return calc_margin(s, s + calc_size, calc_size, margin_start, margin_end, containing_block_width);
 			} else if align > 0 {
 				// 后对齐
 				return (
 					Number::Defined(calc_size),
-					parent - margin_end.resolve_value(parent) - calc_size,
+					parent - margin_end.resolve_value(containing_block_width) - calc_size,
 				);
 			} else {
 				// 前对齐
-				return (Number::Defined(calc_size), margin_start.resolve_value(parent));
+				return (Number::Defined(calc_size), margin_start.resolve_value(containing_block_width));
 			}
 		};
 		return (
 			Number::Defined(calc_size),
-			parent - rrr - margin_end.resolve_value(parent) - calc_size,
+			parent - rrr - margin_end.resolve_value(containing_block_width) - calc_size,
 		);
 	};
 	// size为Percent或Points、 start为Percent或Points
-	return (
+	(
 		Number::Defined(calc_size),
-		calc_start + margin_start.resolve_value(parent),
-	);
-	
-    // // 左右对齐
-    // let rrr = match end {
-    //     Dimension::Points(rrr) => rrr,
-    //     Dimension::Percent(rrr) => parent * rrr,
-    //     _ => {
-    //         // 前对齐
-    //         return (Number::Defined(r), rr + margin_start.resolve_value(parent));
-    //     }
-    // };
-    // calc_margin(rr, parent - rrr, r, margin_start, margin_end, parent)
+		calc_start + margin_start.resolve_value(containing_block_width),
+	)
 }
 
 #[derive(Default, Clone, PartialEq, PartialOrd, Debug)]
@@ -2383,15 +2324,15 @@ pub struct ContainerStyle {
     pub justify_content: JustifyContent,
     pub align_items: AlignItems,
     pub align_content: AlignContent,
+    pub row_gap: f32,
+    pub column_gap: f32,
 }
 pub trait FlexLayoutCombine: FlexLayoutStyle {
     fn container_style(&self) -> ContainerStyle;
-    fn margin(&self) -> Rect<Dimension>;
-    fn padding(&self) -> Rect<Dimension>;
+    fn margin(&self) -> SideGap<Dimension>;
+    fn border(&self) -> SideGap<Dimension>;
+    fn padding(&self) -> SideGap<Dimension>;
     fn position(&self) -> Rect<Dimension>;
-    fn border(&self) -> Rect<Dimension>;
-    fn calc_horizontal_content_size(&self, size: Number) -> Number;
-    fn calc_vertical_content_size(&self, size: Number) -> Number;
 }
 
 impl<T: FlexLayoutStyle> FlexLayoutCombine for T {
@@ -2402,18 +2343,20 @@ impl<T: FlexLayoutStyle> FlexLayoutCombine for T {
             justify_content: self.justify_content(),
             align_items: self.align_items(),
             align_content: self.align_content(),
+            row_gap: self.row_gap(),
+            column_gap: self.column_gap(),
         }
     }
-    fn margin(&self) -> Rect<Dimension> {
-        Rect {
+    fn margin(&self) -> SideGap<Dimension> {
+        SideGap {
             left: self.margin_left(),
             right: self.margin_right(),
             top: self.margin_top(),
             bottom: self.margin_bottom(),
         }
     }
-    fn padding(&self) -> Rect<Dimension> {
-        Rect {
+    fn padding(&self) -> SideGap<Dimension> {
+        SideGap {
             left: self.padding_left(),
             right: self.padding_right(),
             top: self.padding_top(),
@@ -2428,8 +2371,8 @@ impl<T: FlexLayoutStyle> FlexLayoutCombine for T {
             bottom: self.position_bottom(),
         }
     }
-    fn border(&self) -> Rect<Dimension> {
-        Rect {
+    fn border(&self) -> SideGap<Dimension> {
+        SideGap {
             left: self.border_left(),
             right: self.border_right(),
             top: self.border_top(),
@@ -2437,112 +2380,138 @@ impl<T: FlexLayoutStyle> FlexLayoutCombine for T {
         }
     }
 
-    fn calc_horizontal_content_size(&self, size: Number) -> Number {
-        calc_content_size(
-            size,
-            self.border_left(),
-            self.border_right(),
-            self.padding_right(),
-            self.padding_right(),
-        )
-    }
-
-    fn calc_vertical_content_size(&self, size: Number) -> Number {
-        calc_content_size(
-            size,
-            self.border_top(),
-            self.border_bottom(),
-            self.padding_top(),
-            self.padding_bottom(),
-        )
-    }
 }
-
-// 根据宽高获得内容宽高
-fn calc_content_size(
-    size: Number,
-    b_start: Dimension,
-    b_end: Dimension,
-    p_start: Dimension,
-    p_end: Dimension,
-) -> Number {
-	if let Number::Defined(r) = size {
-		Number::Defined(
-            r - b_start.resolve_value(r)
-                - b_end.resolve_value(r)
-                - p_start.resolve_value(r)
-                - p_end.resolve_value(r),
-        )
-	} else {
-		size
-	}
-}
-// 根据内容宽高计算宽高
-fn calc_size_from_content(
-    mut points: f32,
-    b_start: Dimension,
-    b_end: Dimension,
-    p_start: Dimension,
-    p_end: Dimension,
-) -> f32 {
-    let mut p = 0.0;
-    percent_calc(b_start, &mut points, &mut p);
-    percent_calc(b_end, &mut points, &mut p);
-    percent_calc(p_start, &mut points, &mut p);
-    percent_calc(p_end, &mut points, &mut p);
-    reverse_calc(points, p)
-}
-// 根据固定值和百分比反向计算大小
-fn reverse_calc(points: f32, percent: f32) -> f32 {
-    if percent >= 1.0 {
-        // 防止百分比大于100%
-        points
-    } else {
-        points / (1.0 - percent)
+// 计算边距和空白区， css规范边距不能使用百分比，css规范空白区是相对于包含块
+// fn calc_border_padding(
+//     parent_size: Size<f32>, // 包含块的尺寸
+//     border: &Rect<Dimension>, padding: &Rect<Dimension>,
+// ) -> Rect<f32> {
+//     Rect{
+//         left: border.left.resolve_value(parent_size.width) + padding.left.resolve_value(parent_size.width),
+//         top: border.top.resolve_value(parent_size.height) + padding.top.resolve_value(parent_size.height),
+//         right: border.right.resolve_value(parent_size.width) + padding.right.resolve_value(parent_size.width),
+//         bottom: border.bottom.resolve_value(parent_size.height) + padding.bottom.resolve_value(parent_size.height),
+//     }
+// }
+// 根据margin计算区域，，百分比值是相对于包含块的宽度
+fn calc_rect_by_containing_block(
+    containing_block_size: &Size<f32>, // 包含块的尺寸
+    margin: &SideGap<Dimension>,
+) -> Rect<f32> {
+    Rect{
+        left: margin.left.resolve_value(containing_block_size.width),
+        top: margin.top.resolve_value(containing_block_size.width),
+        right: containing_block_size.width - margin.right.resolve_value(containing_block_size.width),
+        bottom: containing_block_size.height - margin.bottom.resolve_value(containing_block_size.width),
     }
 }
-fn percent_calc(d: Dimension, points: &mut f32, percent: &mut f32) -> bool {
-	if let Dimension::Points(r) = d {
-		*points += r;
-	} else if let Dimension::Percent(r) = d {
-		*percent += r;
-	} else {
-		return false;
-	}
-	true
-}
-
-// 已经确定了布局的区域， 需要计算布局中的border和padding
-#[inline]
-fn calc_border_padding(s: &Rect<Dimension>, w: f32, h: f32) -> Rect<f32> {
-    Rect {
-        left: s.left.resolve_value(w),
-        right: s.right.resolve_value(w),
-        top: s.top.resolve_value(h),
-        bottom: s.bottom.resolve_value(h),
+// 计算间隙（边框或空白区）， css规范边距不能使用百分比，css规范padding空白区的百分比是相对于包含块的宽度
+fn calc_gap_by_containing_block(
+    containing_block_size: &Size<f32>, // 包含块的尺寸
+    gap: &SideGap<Dimension>,
+) -> SideGap<f32> {
+    SideGap{
+        left: gap.left.resolve_value(containing_block_size.width),
+        top: gap.top.resolve_value(containing_block_size.width),
+        right: gap.right.resolve_value(containing_block_size.width),
+        bottom: gap.bottom.resolve_value(containing_block_size.width),
     }
 }
+// fn calc_vertical_content_size(&self, size: Number) -> Number {
+//     calc_content_size(
+//         size,
+//         self.border_top(),
+//         self.border_bottom(),
+//         self.padding_top(),
+//         self.padding_bottom(),
+//     )
+// }
 
-// 计算margin, margin=Auto时自动填充剩余空间， 两边都Auto时平分剩余空间
+// // 根据宽高获得内容宽高
+// fn calc_content_size(
+//     size: Number,
+//     b_start: Dimension,
+//     b_end: Dimension,
+//     p_start: Dimension,
+//     p_end: Dimension,
+// ) -> Number {
+// 	if let Number::Defined(r) = size {
+// 		Number::Defined(
+//             r - b_start.resolve_value(r)
+//                 - b_end.resolve_value(r)
+//                 - p_start.resolve_value(r)
+//                 - p_end.resolve_value(r),
+//         )
+// 	} else {
+// 		size
+// 	}
+// }
+// /// 根据内容宽高计算宽高
+// fn calc_size_from_content(
+//     mut points: f32,
+//     b_start: Dimension,
+//     b_end: Dimension,
+//     p_start: Dimension,
+//     p_end: Dimension,
+// ) -> f32 {
+//     let mut p = 0.0;
+//     percent_calc(b_start, &mut points, &mut p);
+//     percent_calc(b_end, &mut points, &mut p);
+//     percent_calc(p_start, &mut points, &mut p);
+//     percent_calc(p_end, &mut points, &mut p);
+//     reverse_calc(points, p)
+// }
+// /// 根据固定值和百分比反向计算大小
+// fn reverse_calc(points: f32, percent: f32) -> f32 {
+//     if percent >= 1.0 {
+//         // 防止百分比大于100%
+//         points
+//     } else {
+//         points / (1.0 - percent)
+//     }
+// }
+// fn percent_calc(d: Dimension, points: &mut f32, percent: &mut f32) -> bool {
+// 	if let Dimension::Points(r) = d {
+// 		*points += r;
+// 	} else if let Dimension::Percent(r) = d {
+// 		*percent += r;
+// 	} else {
+// 		return false;
+// 	}
+// 	true
+// }
+
+// /// 已经确定了布局的区域， 需要计算布局中的border和padding
+// #[inline]
+// fn calc_border_padding(s: &Rect<Dimension>, w: f32, h: f32) -> Rect<f32> {
+//     Rect {
+//         left: s.left.resolve_value(w),
+//         right: s.right.resolve_value(w),
+//         top: s.top.resolve_value(h),
+//         bottom: s.bottom.resolve_value(h),
+//     }
+// }
+
+/// 计算margin, margin=Auto时自动填充剩余空间， 两边都Auto时平分剩余空间
 fn calc_margin(
     mut start: f32,
     mut end: f32,
     size: f32,
     margin_start: Dimension,
     margin_end: Dimension,
-    parent: f32,
+    containing_block_width: f32,
 ) -> (Number, f32) {
 	if let Dimension::Points(r) = margin_start {
 		start += r;
 		end = start + size;
 	} else if let Dimension::Percent(r) = margin_start {
-		start += r * parent;
+		start += r * containing_block_width;
 		end = start + size;
 	} else if let Dimension::Points(r) = margin_end {
 		end -= r;
         start = end - size;
 	} else if let Dimension::Percent(r) = margin_end {
-		end -= r * parent;
+		end -= r * containing_block_width;
         start = end - size;
 	} else {
 		out_any!(
@@ -2560,7 +2529,7 @@ fn calc_margin(
     (Number::Defined(end - start), start)
 }
 
-// 在flex计算的区域中 根据pos的位置进行偏移
+/// 在flex计算的区域中 根据pos的位置进行偏移
 fn calc_pos(position_start: Dimension, position_end: Dimension, parent: f32, pos: f32) -> f32 {
 	if let Dimension::Points(r) = position_start {
 		pos + r
@@ -2576,7 +2545,7 @@ fn calc_pos(position_start: Dimension, position_end: Dimension, parent: f32, pos
 		}
 	}
 }
-// 计算子节点的大小
+/// 计算子节点的大小
 fn calc_number(s: Dimension, parent: f32) -> Number {
 	if let Dimension::Points(r) = s {
 		Number::Defined(r)
@@ -2600,17 +2569,10 @@ fn calc_location_number(s: Dimension, parent: f32) -> Number {
 	}
 }
 
-fn calc_length(length: Number, min_length: Number) -> Number {
-	if let (Number::Undefined, Number::Defined(_)) = (length, min_length) {
-		min_length
-	} else if let (Number::Defined(l1), Number::Defined(l2)) = (length, min_length) {
-		if l1 > l2 {
-			length
-		} else {
-			min_length
-		}
-	} else {
-		length
+fn calc_length(length: Number, min_value: Number, max_value: Number) -> Number {
+	match length {
+        Number::Defined(r) => Number::Defined(min_max_calc(r, min_value, max_value)),
+		_ => return length
 	}
 }
 pub(crate) static mut PP: usize = 0;

@@ -22,6 +22,8 @@ pub struct Style {
     pub justify_content: JustifyContent,
     pub align_items: AlignItems,
     pub align_content: AlignContent,
+    pub row_gap: f32,
+    pub column_gap: f32,
 
     pub order: isize,
     pub flex_basis: Dimension,
@@ -40,6 +42,7 @@ pub struct Style {
     pub size: Size<Dimension>,
 
 	pub overflow_wrap: OverflowWrap,
+	pub auto_reduce: bool,
 }
 
 impl FlexLayoutStyle for Style {
@@ -146,6 +149,12 @@ impl FlexLayoutStyle for Style {
     fn align_content(&self) -> AlignContent {
         self.align_content
     }
+    fn row_gap(&self) -> f32 {
+        self.row_gap
+    }
+    fn column_gap(&self) -> f32{
+        self.column_gap
+    }
 
     fn order(&self) -> isize {
         self.order
@@ -194,30 +203,19 @@ impl FlexLayoutStyle for Style {
 	fn overflow_wrap(&self) -> OverflowWrap {
 		self.overflow_wrap
 	}
+	fn auto_reduce(&self) -> bool {
+		self.auto_reduce
+	}
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct LayoutResult {
     pub rect: Rect<f32>,
-    pub border: Rect<f32>,
-    pub padding: Rect<f32>,
+    pub border: SideGap<f32>,
+    pub padding: SideGap<f32>,
+    pub absolute: bool,
 }
 
-impl Default for LayoutResult {
-    fn default() -> Self {
-        let r = Rect {
-            left: 0.0,
-            right: 0.0,
-            top: 0.0,
-            bottom: 0.0,
-        };
-        Self {
-            rect: r.clone(),
-            border: r.clone(),
-            padding: r,
-        }
-    }
-}
 
 #[derive(Debug)]
 pub struct LayoutResultItem<'a>(&'a mut LayoutResult);
@@ -227,24 +225,31 @@ impl<'a> LayoutR for LayoutResultItem<'a> {
         &self.0.rect
     }
 
-    fn border(&self) -> &Rect<f32> {
+    fn border(&self) -> &SideGap<f32> {
         &self.0.border
     }
 
-    fn padding(&self) -> &Rect<f32> {
+    fn padding(&self) -> &SideGap<f32> {
         &self.0.padding
+    }
+    fn absolute(&self) -> bool {
+        self.0.absolute
     }
 
     fn set_rect(&mut self, v: Rect<f32>) {
         self.0.rect = v;
     }
 
-    fn set_border(&mut self, v: Rect<f32>) {
+    fn set_border(&mut self, v: SideGap<f32>) {
         self.0.border = v;
     }
 
-    fn set_padding(&mut self, v: Rect<f32>) {
+    fn set_padding(&mut self, v: SideGap<f32>) {
         self.0.padding = v;
+    }
+
+    fn set_absolute(&mut self, b: bool) {
+        self.0.absolute = b;
     }
 
     fn set_finish(&mut self) {}
