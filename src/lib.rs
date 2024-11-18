@@ -2,7 +2,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(not(feature = "std"), feature(alloc))]
 #![allow(invalid_reference_casting)]
-#![feature(diagnostic_namespace)]
+#![feature(once_cell)]
 
 extern crate paste;
 
@@ -13,7 +13,6 @@ extern crate pi_print_any;
 extern crate serde;
 
 mod calc;
-// mod grow_shrink;
 mod geometry;
 mod layout_tree;
 mod number;

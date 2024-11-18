@@ -37,6 +37,12 @@ impl<T: Copy + Default + Add<Output = T> + Sub<Output = T>> Rect<T> {
             bottom: top + height,
         }
     }
+    pub fn width(&self) -> T {
+        self.right - self.left
+    }
+    pub fn height(&self) -> T {
+        self.bottom - self.top
+    }
     pub fn size(&self) -> Size<T> {
         Size {
             width: self.right - self.left,

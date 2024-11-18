@@ -859,7 +859,7 @@ where
     R: GetMut<K, Target = LR>,
 {
     // 每个子节点根据 justify-content align-items align-self，来计算main cross的位置和大小
-    pub fn item_calc(
+    fn item_calc(
         &mut self,
         temp: &mut TempNode<K>,
         start: &mut usize,
@@ -2033,11 +2033,6 @@ where
     }
 }
 
-#[derive(PartialEq, Debug)]
-enum LayoutSize {
-    None,
-    Size((f32, f32)),
-}
 
 // 设置布局结果，返回是否变动两种内容区大小
 fn set_layout_result<T, K, L: LayoutR>(
@@ -2394,17 +2389,17 @@ impl<T: FlexLayoutStyle> FlexLayoutCombine for T {
 //     }
 // }
 // 根据margin计算区域，，百分比值是相对于包含块的宽度
-fn calc_rect_by_containing_block(
-    containing_block_size: &Size<f32>, // 包含块的尺寸
-    margin: &SideGap<Dimension>,
-) -> Rect<f32> {
-    Rect{
-        left: margin.left.resolve_value(containing_block_size.width),
-        top: margin.top.resolve_value(containing_block_size.width),
-        right: containing_block_size.width - margin.right.resolve_value(containing_block_size.width),
-        bottom: containing_block_size.height - margin.bottom.resolve_value(containing_block_size.width),
-    }
-}
+// fn calc_rect_by_containing_block(
+//     containing_block_size: &Size<f32>, // 包含块的尺寸
+//     margin: &SideGap<Dimension>,
+// ) -> Rect<f32> {
+//     Rect{
+//         left: margin.left.resolve_value(containing_block_size.width),
+//         top: margin.top.resolve_value(containing_block_size.width),
+//         right: containing_block_size.width - margin.right.resolve_value(containing_block_size.width),
+//         bottom: containing_block_size.height - margin.bottom.resolve_value(containing_block_size.width),
+//     }
+// }
 // 计算间隙（边框或空白区）， css规范边距不能使用百分比，css规范padding空白区的百分比是相对于包含块的宽度
 fn calc_gap_by_containing_block(
     containing_block_size: &Size<f32>, // 包含块的尺寸
