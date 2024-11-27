@@ -1423,7 +1423,11 @@ where
                 self.node_layout(cache, is_notify, line, child, children_index, direction);
                 cache.vnode.push(id);
                 if is_notify {
-                	self.notify.clone()(self.notify_arg, id, &mut self.layout_map.get_mut(id));
+                    let mut layout = self.layout_map.get_mut(id);
+                    let __ = &mut layout; // 触发layout修改
+                    __.set_rect(Rect { left: 0.0, right: 0.0, top: 0.0, bottom: 0.0 });
+                	self.notify.clone()(self.notify_arg, id, __);
+                    out_any!(log::trace, "vnode notify id: {:?}", id);
                 }
                 continue;
             }
