@@ -14,17 +14,19 @@
 /// TODO 支持min_size max_size
 /// TODO 支持gap 支持负值
 /// TODO 支持自动缩小
+/// TODO 浏览器会将多余的空间视为 1 的值。这意味着当你为其中一个 Flex 项的 flex-grow 设置为 0.5 时，浏览器会将剩余空间的一半添加到该项的大小中。
+/// TODO 绝对定位下，如果能设置自身的中心点或锚点（center_x center_y，默认为50%），并且支持用宽高百分比来设置，然后用location来设置自身的位置，包括对齐，优先级高于left right top bottom。
+/// TODO 还是要支持简单版本的grid网格布局
+/// TODO 支持position: fixed， 其包含块根节点上（也就是viewport），而且自己的zIndexContext也在根节点上， 该zIndexContext比根节点上绝对定位的子节点的zIndexContext要高，
 
 /// 浏览器版本的flex实现不合理的地方
 /// 1、自动大小的容器，其大小受子节点大小计算的影响，flex-basis这个时候并没有参与计算，但浏览器版本行和列的实现不一致，列的情况下子节点的flex-basis会影响父容器的大小，行不会。
-/// flex_basis_unconstraint_column
 /// 2、自动计算主轴大小的容器，其折行属性应该为不折行，这样子节点顺序放置后，才好计算容器的主轴大小。浏览器版本就不是这么实现的
 /// 3、如果A 包含 B，B包含C， A C 都有大小，B本身自动计算大小，这种情况下，浏览器的实现是B就不受A上的flex-basis grow shrink 影响，这样也不太合理。浏览器的计算似乎是从C先算B，然后不在二次计算B受的约束。 而正确的方式应该是先从A算B，发现B为自动大小，接着算C，反过来计算B的大小，然后受flex-basis影响，B大小变化后，再影响C的位置。
 /// flex_basis_smaller_then_content_with_flex_grow_large_size
 
 /// 注意事项：
 /// 1. 根节点必须是区域（绝对定位， 绝对位置，绝对尺寸）
-/// 2.
 use pi_null::Null;
 use std::ops::IndexMut;
 
@@ -32,7 +34,10 @@ use std::ops::IndexMut;
 
 use crate::calc::*;
 use crate::geometry::*;
+use crate::layout_context::*;
+use crate::node_state::NodeState;
 use crate::style::*;
+use crate::traits::*;
 use pi_dirty::*;
 
 pub struct Layout<'a, K: Null + Clone + Copy, S, T, L, I, R, LI: Get<K, Target = L>, LR: LayoutR>(
@@ -77,7 +82,7 @@ where
 
     pub fn compute(&mut self, dirty: &mut LayerDirty<K>) {
         if dirty.count() > 0 {
-            out_any!(log::trace, "compute: {:?}", &dirty);
+            out_any!(log::trace, "compute, {:?}", &dirty);
         }
         for (id, _layer) in dirty.iter() {
             // println_any!("layout======{:?}, {:?}", id, _layer);
@@ -85,15 +90,21 @@ where
                 Some(n) => (n, &mut self.0.i_nodes[*id]),
                 _ => continue,
             };
-            out_any!(log::trace, "    calc: {:?} children_dirty:{:?} self_dirty:{:?} children_abs:{:?} children_rect:{:?} children_no_align_self:{:?} children_index:{:?} vnode:{:?} abs:{:?} size_defined:{:?}, layer:{:?}", id, i_node.state.children_dirty(), i_node.state.self_dirty(), i_node.state.children_abs(), i_node.state.children_rect(), i_node.state.children_no_align_self(), i_node.state.children_index(), i_node.state.vnode(), i_node.state.abs(), i_node.state.size_defined(), _layer);
+            out_any!(
+                log::trace,
+                " compute1, id: {:?} node:{:?}, layer:{:?}",
+                id,
+                i_node.state,
+                _layer
+            );
             let state = i_node.state;
-            if !(state.self_dirty() || state.children_dirty()) {
+            if !(state.contains(NodeState::SelfDirty) || state.contains(NodeState::ChildrenDirty)) {
                 continue;
             }
-            i_node.state.set_false(&INodeState::new(
-                INodeStateType::ChildrenDirty as usize + INodeStateType::SelfDirty as usize,
-            ));
-            if i_node.state.vnode() {
+            i_node
+                .state
+                .set_false(NodeState::ChildrenDirty | NodeState::SelfDirty);
+            if i_node.state.contains(NodeState::VNode) {
                 // 不在树上或虚拟节点
                 continue;
             }
@@ -110,7 +121,7 @@ where
             let is_text = i_node.text.len() > 0;
             // 忽略虚拟父节点， 找到包含块元素（一般是父节点）
             let mut parent = self.0.tree.get_up(*id).map_or(K::null(), |up| up.parent());
-            while !parent.is_null() && self.0.i_nodes[parent].state.vnode() {
+            while !parent.is_null() && self.0.i_nodes[parent].state.contains(NodeState::VNode) {
                 parent = self
                     .0
                     .tree
@@ -137,7 +148,7 @@ where
                     Size::default(),
                     &flex,
                 );
-            } else if state.abs() && state.self_rect() {
+            } else if state.contains(NodeState::Abs) && state.contains(NodeState::SelfRect) {
                 // 绝对定位且只需要计算自身大小的节点
                 let style = self.0.style.get(parent);
                 self.0.abs_layout(
@@ -149,7 +160,7 @@ where
                     Size::default(),
                     &style.container_style(),
                 );
-            } else if state.abs() {
+            } else if state.contains(NodeState::Abs) {
                 // 如果节点是绝对定位， 则重新计算自身的布局数据
                 let layout = self.0.layout_map.get_mut(parent);
                 let style = self.0.style.get(parent);
@@ -182,7 +193,7 @@ where
     fn set_parent(
         &mut self,
         dirty: &mut LayerDirty<K>,
-        state: INodeState,
+        state: NodeState,
         parent: K,
         mark: bool,
         align_self: AlignSelf,
@@ -193,17 +204,17 @@ where
         }
         let layer = self.0.tree.get_layer(parent).map_or(usize::null(), |l| l);
         let i_node = &mut self.0.i_nodes[parent];
-        if !state.abs() {
-            i_node.state.children_abs_false();
+        if !state.contains(NodeState::Abs) {
+            i_node.state.set_false(NodeState::ChildrenAbs);
         }
-        if !state.self_rect() {
-            i_node.state.children_rect_false();
+        if !state.contains(NodeState::SelfRect) {
+            i_node.state.set_false(NodeState::ChildrenRect);
         }
         if align_self != AlignSelf::Auto {
-            i_node.state.children_no_align_self_false();
+            i_node.state.set_false(NodeState::ChildrenNoAlignSelf);
         }
         if order != 0 {
-            i_node.state.children_index_false();
+            i_node.state.set_false(NodeState::ChildrenIndex);
         }
         if mark && !layer.is_null() {
             self.mark_children_dirty(dirty, parent)
@@ -334,25 +345,33 @@ where
     //     0
     // }
     // 设置节点children_dirty脏, 如果节点是size=auto并且不是绝对定位,也不是虚拟节点, 则继续设置其父节点children_dirty脏
-    pub fn mark_children_dirty(&mut self, dirty: &mut LayerDirty<K>, mut id: K) {
+    fn mark_children_dirty(&mut self, dirty: &mut LayerDirty<K>, mut id: K) {
         while !id.is_null() {
             let i_node = &mut self.0.i_nodes[id];
             let layer = self.0.tree.get_layer(id).map_or(usize::null(), |l| l);
 
-            out_any!(log::trace, "mark_children_dirty, id:{:?}, self_dirty:{:?}, size_defined:{:?}, abs:{:?}, vnode:{:?}, children_dirty: {:?}", id, i_node.state.self_dirty(),i_node.state.size_defined(), i_node.state.abs(), i_node.state.vnode(), i_node.state.children_dirty());
+            out_any!(
+                log::trace,
+                "mark_children_dirty, id:{:?}, state:{:?}",
+                id,
+                i_node.state
+            );
 
-            if i_node.state.children_dirty() || layer.is_null() {
+            if i_node.state.contains(NodeState::ChildrenDirty) || layer.is_null() {
                 break;
             }
 
-            if !i_node.state.vnode() {
-                i_node.state.children_dirty_true();
-                if !i_node.state.self_dirty() {
+            if !i_node.state.contains(NodeState::VNode) {
+                i_node.state.set_true(NodeState::ChildrenDirty);
+                if !i_node.state.contains(NodeState::SelfDirty) {
                     dirty.mark(id, layer);
                 }
             }
 
-            if i_node.state.vnode() || !(i_node.state.size_defined() && i_node.state.abs()) {
+            if i_node.state.contains(NodeState::VNode)
+                || !(i_node.state.contains(NodeState::SizeDefined)
+                    && i_node.state.contains(NodeState::Abs))
+            {
                 id = self.0.tree.get_up(id).map_or(K::null(), |up| up.parent())
             } else {
                 break;
@@ -363,10 +382,10 @@ where
     // 计算是否绝对区域
     fn calc_abs(style: &L, n: &mut INode) -> bool {
         if style.position_type() == PositionType::Absolute {
-            n.state.abs_true();
+            n.state.set_true(NodeState::Abs);
             true
         } else {
-            n.state.abs_false();
+            n.state.set_false(NodeState::Abs);
             false
         }
     }
@@ -379,20 +398,20 @@ where
             && style.width().is_points()
             && style.height().is_points()
         {
-            n.state.self_rect_true();
+            n.state.set_true(NodeState::SelfRect);
             true
         } else {
-            n.state.self_rect_false();
+            n.state.set_false(NodeState::SelfRect);
             false
         }
     }
     // 计算是否大小已经定义
     fn calc_size_defined(style: &L, n: &mut INode) -> bool {
         if style.width().is_defined() && style.height().is_defined() {
-            n.state.size_defined_true();
+            n.state.set_true(NodeState::SizeDefined);
             true
         } else {
-            n.state.size_defined_false();
+            n.state.set_false(NodeState::SizeDefined);
             false
         }
     }
@@ -408,16 +427,20 @@ where
             log::trace,
             "set_self_dirty, id: {:?}, self_dirty:{:?}, children_dirty:{:?}",
             id,
-            i_node.state.self_dirty(),
-            i_node.state.children_dirty()
+            i_node.state.contains(NodeState::SelfDirty),
+            i_node.state.contains(NodeState::ChildrenDirty)
         );
-        if !i_node.state.vnode() && !i_node.state.self_dirty() {
-            i_node.state.self_dirty_true();
+        if !i_node.state.contains(NodeState::VNode) && !i_node.state.contains(NodeState::SelfDirty)
+        {
+            i_node.state.set_true(NodeState::SelfDirty);
             if !layer.is_null() {
-                if !i_node.state.children_dirty() {
+                if !i_node.state.contains(NodeState::ChildrenDirty) {
                     dirty.mark(id, layer);
                 }
-                if i_node.state.vnode() || !(i_node.state.size_defined() && i_node.state.abs()) {
+                if i_node.state.contains(NodeState::VNode)
+                    || !(i_node.state.contains(NodeState::SizeDefined)
+                        && i_node.state.contains(NodeState::Abs))
+                {
                     return parent;
                 }
             }

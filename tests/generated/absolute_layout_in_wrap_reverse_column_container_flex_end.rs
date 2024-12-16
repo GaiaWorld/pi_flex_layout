@@ -3,7 +3,7 @@ fn print<T: pi_flex_layout::prelude::LayoutR + std::fmt::Debug>(
     id: pi_slotmap_tree::TreeKey,
     layout: &T,
 ) {
-    unsafe { println!("result: {:?} {:?}", id, layout) };
+    println!("result: {:?} {:?}", id, layout);
 }
 #[test]
 fn absolute_layout_in_wrap_reverse_column_container_flex_end() {
@@ -60,7 +60,7 @@ fn absolute_layout_in_wrap_reverse_column_container_flex_end() {
         pi_slotmap_tree::InsertType::Back,
         pi_flex_layout::prelude::Style {
             position_type: pi_flex_layout::prelude::PositionType::Absolute,
-            align_self: pi_flex_layout::prelude::AlignSelf::FlexEnd,
+            align_self: pi_flex_layout::prelude::AlignSelf::Center,
             size: pi_flex_layout::prelude::Size {
                 width: pi_flex_layout::prelude::Dimension::Points(20f32),
                 height: pi_flex_layout::prelude::Dimension::Points(20f32),
@@ -88,6 +88,6 @@ fn absolute_layout_in_wrap_reverse_column_container_flex_end() {
     let layout = layout_tree.get_layout(node_3).unwrap();
     assert_eq!((layout.rect.right - layout.rect.left).round(), 20f32);
     assert_eq!((layout.rect.bottom - layout.rect.top).round(), 20f32);
-    assert_eq!(layout.rect.left.round(), 0f32);
+    assert_eq!(layout.rect.left.round(), 40f32);
     assert_eq!(layout.rect.top.round(), 0f32);
 }

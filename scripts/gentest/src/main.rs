@@ -193,7 +193,7 @@ fn test_root_element(
     let url = format!("file://{}", fixture_path.display());
     let nav_client = client.clone();
     let mut locate_client = client.clone();
-
+    println!("navigating to {:?}", &url);
     nav_client
         .goto(&url)
         .map_err(|e| e.context("navigating to file"))
@@ -219,7 +219,7 @@ fn generate_bench(description: &json::JsonValue) -> TokenStream {
     let index1 = Ident::new(&format!("node_{}", 1), Span::call_site());
     quote!(
         fn print<T: pi_flex_layout::prelude::LayoutR + std::fmt::Debug>(_arg: &mut (), id: pi_slotmap_tree::TreeKey, layout: &T) {
-           unsafe{println!("result: {:?} {:?}", id, layout)};
+           println!("result: {:?} {:?}", id, layout);
         }
         pub fn compute() {
             let mut layout_tree = pi_flex_layout::prelude::LayoutTree::default();
@@ -258,8 +258,8 @@ fn generate_test(name: impl AsRef<str>, description: &json::JsonValue) -> TokenS
     let index1 = Ident::new(&format!("node_{}", 1), Span::call_site());
 
     quote!(
-        fn print<T: pi_flex_layout::prelude::LayoutR + std::fmt::Debug>(_arg: &mut (), id: pi_slotmap_tree::TreeKey, layout: &T) {
-            unsafe{println!("result: {:?} {:?}", id, layout)};
+        pub fn print<T: pi_flex_layout::prelude::LayoutR + std::fmt::Debug>(_arg: &mut (), id: pi_slotmap_tree::TreeKey, layout: &T) {
+            println!("result: {:?} {:?}", id, layout);
         }
         #[test]
         fn #name() {

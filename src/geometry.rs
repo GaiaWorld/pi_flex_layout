@@ -1,7 +1,6 @@
+use crate::number::Number;
 use core::ops::Add;
 use std::ops::Sub;
-use crate::number::Number;
-
 
 /// 四边的间隙， 采用left right top bottom定义四边的间隙
 #[derive(Debug, Copy, Default, Clone, PartialEq, Serialize, Deserialize, Hash)]
@@ -12,7 +11,6 @@ pub struct SideGap<T: Default> {
     pub bottom: T,
 }
 impl<T: Copy + Default + Add<Output = T>> SideGap<T> {
-
     pub fn gap_size(&self) -> Size<T> {
         Size {
             width: self.right + self.left,

@@ -3,7 +3,7 @@ fn print<T: pi_flex_layout::prelude::LayoutR + std::fmt::Debug>(
     id: pi_slotmap_tree::TreeKey,
     layout: &T,
 ) {
-    unsafe { println!("result: {:?} {:?}", id, layout) };
+    println!("result: {:?} {:?}", id, layout);
 }
 #[test]
 fn nested_overflowing_child_in_constraint_parent() {
@@ -102,7 +102,7 @@ fn nested_overflowing_child_in_constraint_parent() {
     assert_eq!(layout.rect.left.round(), 0f32);
     assert_eq!(layout.rect.top.round(), 0f32);
     let layout = layout_tree.get_layout(node_4).unwrap();
-    assert_eq!((layout.rect.right - layout.rect.left).round(), 100f32);
+    assert_eq!((layout.rect.right - layout.rect.left).round(), 200f32);
     assert_eq!((layout.rect.bottom - layout.rect.top).round(), 200f32);
     assert_eq!(layout.rect.left.round(), 0f32);
     assert_eq!(layout.rect.top.round(), 0f32);

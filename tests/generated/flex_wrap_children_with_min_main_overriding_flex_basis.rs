@@ -3,7 +3,7 @@ fn print<T: pi_flex_layout::prelude::LayoutR + std::fmt::Debug>(
     id: pi_slotmap_tree::TreeKey,
     layout: &T,
 ) {
-    unsafe { println!("result: {:?} {:?}", id, layout) };
+    println!("result: {:?} {:?}", id, layout);
 }
 #[test]
 fn flex_wrap_children_with_min_main_overriding_flex_basis() {

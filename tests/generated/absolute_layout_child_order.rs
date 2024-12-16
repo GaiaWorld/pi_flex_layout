@@ -3,7 +3,7 @@ fn print<T: pi_flex_layout::prelude::LayoutR + std::fmt::Debug>(
     id: pi_slotmap_tree::TreeKey,
     layout: &T,
 ) {
-    unsafe { println!("result: {:?} {:?}", id, layout) };
+    println!("result: {:?} {:?}", id, layout);
 }
 #[test]
 fn absolute_layout_child_order() {
@@ -115,9 +115,9 @@ fn absolute_layout_child_order() {
     assert_eq!(layout.rect.left.round(), 0f32);
     assert_eq!(layout.rect.top.round(), 0f32);
     let layout = layout_tree.get_layout(node_3).unwrap();
-    assert_eq!((layout.rect.right - layout.rect.left).round(), 55f32);
+    assert_eq!((layout.rect.right - layout.rect.left).round(), 60f32);
     assert_eq!((layout.rect.bottom - layout.rect.top).round(), 40f32);
-    assert_eq!(layout.rect.left.round(), 0f32);
+    assert_eq!(layout.rect.left.round(), -5f32);
     assert_eq!(layout.rect.top.round(), 30f32);
     let layout = layout_tree.get_layout(node_4).unwrap();
     assert_eq!((layout.rect.right - layout.rect.left).round(), 60f32);
@@ -125,7 +125,7 @@ fn absolute_layout_child_order() {
     assert_eq!(layout.rect.left.round(), 25f32);
     assert_eq!(layout.rect.top.round(), 30f32);
     let layout = layout_tree.get_layout(node_5).unwrap();
-    assert_eq!((layout.rect.right - layout.rect.left).round(), 55f32);
+    assert_eq!((layout.rect.right - layout.rect.left).round(), 60f32);
     assert_eq!((layout.rect.bottom - layout.rect.top).round(), 40f32);
     assert_eq!(layout.rect.left.round(), 55f32);
     assert_eq!(layout.rect.top.round(), 30f32);

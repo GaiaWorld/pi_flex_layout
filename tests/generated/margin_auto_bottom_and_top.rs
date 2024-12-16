@@ -3,7 +3,7 @@ fn print<T: pi_flex_layout::prelude::LayoutR + std::fmt::Debug>(
     id: pi_slotmap_tree::TreeKey,
     layout: &T,
 ) {
-    unsafe { println!("result: {:?} {:?}", id, layout) };
+    println!("result: {:?} {:?}", id, layout);
 }
 #[test]
 fn margin_auto_bottom_and_top() {

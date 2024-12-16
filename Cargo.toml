@@ -1,6 +1,6 @@
 [package]
 name = "pi_flex_layout"
-version = "0.2.12"
+version = "0.3.0"
 authors = ["zmythleo <zmythleo@gmail.com>"]
 edition = "2018"
 include = ["src/**/*", "Cargo.toml"]
@@ -15,6 +15,7 @@ circle-ci = { repository = "vislyhq/stretch", branch = "master" }
 maintenance = { status = "experimental" }
 
 [dependencies]
+bitflags = "2.6"
 smallvec = { version = "1.8", features = ["serde"] }
 paste = "1.0"
 log = "0.4"

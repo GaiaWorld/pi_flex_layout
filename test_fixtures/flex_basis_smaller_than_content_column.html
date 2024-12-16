@@ -1,3 +1,4 @@
+<!-- 感觉这样设计是不合理的，因为flex-basis是外部约束，而内容是内部约束，所以flex-basis应该优先级更高。而且width比内容大小优先级高，css又明确说flex-basis优先级高于width，那flex-basis更应该比内容大小优先级高啊 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,7 +7,7 @@
   <title>
     Test description
   </title>
-<head/>
+</head>
 <body>
 
 <div id="test-root" style="height: 100px; flex-direction: column;">

@@ -1,0 +1,21 @@
+<!-- css中绝对定位的元素在flex容器中， align-items justify-content align-self，浏览器的实现却受父容器的padding影响， 这一点很奇怪。
+CSS规范， 绝对定位的元素， 其包含块ContainingBlock是父容器的padding_box，涉及到百分比的大小都是基于该包含块，也就是说不受padding的影响，而且上下左右对齐也是对齐在边框上的， 但居中属性（align-items align-self justify-content）却受padding的影响， 这一点很奇怪。 为了更容易理解，实现时，统一都使用padding-box。
+比较合理的是，绝对定位的元素，由自身样式声明居中属性，比如margin，这样不受父容器的影响。
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../scripts/gentest/test_helper.js"></script>
+  <link rel="stylesheet" type="text/css" href="../scripts/gentest/test_base_style.css">
+  <title>
+    Test description
+  </title>
+</head>
+<body>
+
+<div id="test-root" style="flex-direction: row; width: 100px; height: 100px; flex-wrap: wrap-reverse;">
+  <div style="width:20px; height:20px; position: absolute; align-self: flex-end;"></div>
+</div>
+
+</body>
+</html>

@@ -3,7 +3,7 @@ fn print<T: pi_flex_layout::prelude::LayoutR + std::fmt::Debug>(
     id: pi_slotmap_tree::TreeKey,
     layout: &T,
 ) {
-    unsafe { println!("result: {:?} {:?}", id, layout) };
+    println!("result: {:?} {:?}", id, layout);
 }
 #[test]
 fn percentage_container_in_wrapping_container() {
@@ -71,6 +71,7 @@ fn percentage_container_in_wrapping_container() {
         <pi_slotmap_tree::TreeKey as pi_null::Null>::null(),
         pi_slotmap_tree::InsertType::Back,
         pi_flex_layout::prelude::Style {
+            align_items: pi_flex_layout::prelude::AlignItems::Center,
             justify_content: pi_flex_layout::prelude::JustifyContent::Center,
             size: pi_flex_layout::prelude::Size {
                 width: pi_flex_layout::prelude::Dimension::Percent(1f32),

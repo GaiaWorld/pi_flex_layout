@@ -1,6 +1,9 @@
 
 //! 根据flex布局， 子节点如果有min或max约束了grow和shrink，则按有min或max约束的子节点的grow-shrink来先计算一趟缩放。然后再根据余出来的空间，再进行多轮迭代，继续将没有达到约束上限的节点计算缩放。直到所有约束都完毕，然后再在无约束的子节点的grow-shrink来计算一次缩放。
-//! 注意， 收缩和扩展不同，根据css规范组， shrink的权重是shrink * basis，可能是css规范组希望等比收缩
+//! 注意， 收缩和扩展不同，根据css规范组， shrink的权重是shrink * basis，可能是css规范组希望等比收缩，这样不会出现收缩成负值
+//! grow的值如果小于0，并且总的grow值也小于1，则表示每个grow仅扩展指定的百分比，最后会有剩余空间
+//! shrink的情况和grow类似，shrink的值如果小于0，并且总的shrink值也小于1，则表示每个shrink仅收缩shrink * basis权重对应的百分比，最后会有溢出空间
+
 
 use crate::calc::RelNodeInfo;
 
@@ -53,7 +56,7 @@ impl Data {
             context.no_grow_basis += basis;
         }
         if self.shrink > 0.0 {
-            // 注意， 收缩和扩展不同，根据css规范组， shrink的权重是shrink * basis，可能是css规范组希望等比收缩
+            // 注意， 收缩和扩展不同，根据css规范组， shrink的权重是shrink * basis，可能是css规范组希望等比收缩，这样不会出现收缩成负值
             context.shrink_weight += self.shrink * basis;
             context.shrink_basis += basis;
             match self.min {

@@ -20,21 +20,21 @@ impl Default for Number {
 
 impl OrElse<f32> for Number {
     fn or_else(self, other: f32) -> f32 {
-		if let Number::Defined(val) = self {
-			val
-		} else {
-			other
-		}
+        if let Number::Defined(val) = self {
+            val
+        } else {
+            other
+        }
     }
 }
 
 impl OrElse<Number> for Number {
     fn or_else(self, other: Number) -> Number {
-		if let Number::Defined(_) = self {
-			self
-		} else {
-			other
-		}
+        if let Number::Defined(_) = self {
+            self
+        } else {
+            other
+        }
     }
 }
 

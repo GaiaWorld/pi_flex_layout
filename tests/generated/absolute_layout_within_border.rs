@@ -3,7 +3,7 @@ fn print<T: pi_flex_layout::prelude::LayoutR + std::fmt::Debug>(
     id: pi_slotmap_tree::TreeKey,
     layout: &T,
 ) {
-    unsafe { println!("result: {:?} {:?}", id, layout) };
+    println!("result: {:?} {:?}", id, layout);
 }
 #[test]
 fn absolute_layout_within_border() {
@@ -45,13 +45,6 @@ fn absolute_layout_within_border() {
             size: pi_flex_layout::prelude::Size {
                 width: pi_flex_layout::prelude::Dimension::Points(100f32),
                 height: pi_flex_layout::prelude::Dimension::Points(100f32),
-                ..Default::default()
-            },
-            padding: pi_flex_layout::prelude::Rect {
-                left: pi_flex_layout::prelude::Dimension::Points(10f32),
-                right: pi_flex_layout::prelude::Dimension::Points(10f32),
-                top: pi_flex_layout::prelude::Dimension::Points(10f32),
-                bottom: pi_flex_layout::prelude::Dimension::Points(10f32),
                 ..Default::default()
             },
             border: pi_flex_layout::prelude::Rect {

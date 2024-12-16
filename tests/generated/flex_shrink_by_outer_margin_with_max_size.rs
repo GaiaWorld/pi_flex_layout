@@ -3,7 +3,7 @@ fn print<T: pi_flex_layout::prelude::LayoutR + std::fmt::Debug>(
     id: pi_slotmap_tree::TreeKey,
     layout: &T,
 ) {
-    unsafe { println!("result: {:?} {:?}", id, layout) };
+    println!("result: {:?} {:?}", id, layout);
 }
 #[test]
 fn flex_shrink_by_outer_margin_with_max_size() {
@@ -91,7 +91,7 @@ fn flex_shrink_by_outer_margin_with_max_size() {
     assert_eq!(layout.rect.top.round(), 0f32);
     let layout = layout_tree.get_layout(node_3).unwrap();
     assert_eq!((layout.rect.right - layout.rect.left).round(), 20f32);
-    assert_eq!((layout.rect.bottom - layout.rect.top).round(), 0f32);
+    assert_eq!((layout.rect.bottom - layout.rect.top).round(), 20f32);
     assert_eq!(layout.rect.left.round(), 0f32);
     assert_eq!(layout.rect.top.round(), 100f32);
 }

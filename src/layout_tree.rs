@@ -1,14 +1,19 @@
+//! layout_tree中保存了布局样式和结果，用来隔离具体存储方式
+//! 外界通过LayoutTree来获取样式和结果，也通过LayoutTree.compute来计算布局
+
 use core::marker::PhantomData;
 
 use pi_null::Null;
 use pi_slotmap::{SecondaryMap, SlotMap};
 use pi_slotmap_tree::{InsertType, SlotMapTree, Storage, Tree, TreeKey};
 
-// this declaration is necessary to "mount" the generated code where cargo can see it
-// this allows us to both keep code generation scoped to a singe directory for fs events
-// and to keep each test in a separate file
-
-use crate::prelude::*;
+use crate::calc::*;
+use crate::geometry::*;
+use crate::layout::Layout;
+use crate::layout_context::*;
+use crate::number::Number;
+use crate::style::*;
+use crate::traits::*;
 use pi_dirty::*;
 
 #[derive(Clone, Debug, Default)]
@@ -41,8 +46,8 @@ pub struct Style {
     pub margin: Rect<Dimension>,
     pub size: Size<Dimension>,
 
-	pub overflow_wrap: OverflowWrap,
-	pub auto_reduce: bool,
+    pub overflow_wrap: OverflowWrap,
+    pub auto_reduce: bool,
 }
 
 impl FlexLayoutStyle for Style {
@@ -152,7 +157,7 @@ impl FlexLayoutStyle for Style {
     fn row_gap(&self) -> f32 {
         self.row_gap
     }
-    fn column_gap(&self) -> f32{
+    fn column_gap(&self) -> f32 {
         self.column_gap
     }
 
@@ -200,12 +205,12 @@ impl FlexLayoutStyle for Style {
         self.aspect_ratio
     }
 
-	fn overflow_wrap(&self) -> OverflowWrap {
-		self.overflow_wrap
-	}
-	fn auto_reduce(&self) -> bool {
-		self.auto_reduce
-	}
+    fn overflow_wrap(&self) -> OverflowWrap {
+        self.overflow_wrap
+    }
+    fn auto_reduce(&self) -> bool {
+        self.auto_reduce
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -215,7 +220,6 @@ pub struct LayoutResult {
     pub padding: SideGap<f32>,
     pub absolute: bool,
 }
-
 
 #[derive(Debug)]
 pub struct LayoutResultItem<'a>(&'a mut LayoutResult);
@@ -402,7 +406,20 @@ impl LayoutTree {
             style: &mut self.style_map,
         };
         let mut layout = Layout(c);
-        layout.set_rect(&mut self.dirty, id, true, true,  &s);
+        layout.set_rect(&mut self.dirty, id, true, true, &s);
+    }
+    pub fn compute<T>(&mut self) {
+        let c = LayoutContext {
+            mark: std::marker::PhantomData,
+            i_nodes: &mut self.node_states,
+            layout_map: &mut LayoutResults(&mut self.layout_map),
+            notify_arg: &mut (),
+            notify: notify,
+            tree: &mut self.tree,
+            style: &mut self.style_map,
+        };
+        let mut layout = Layout(c);
+        layout.compute(&mut self.dirty);
     }
 }
 
