@@ -1,12 +1,13 @@
-fn print<T: pi_flex_layout::prelude::LayoutR + std::fmt::Debug>(
+pub fn print<T: pi_flex_layout::prelude::LayoutR + std::fmt::Debug>(
     _arg: &mut (),
     id: pi_slotmap_tree::TreeKey,
     layout: &T,
 ) {
-    println!("result: {:?} {:?}", id, layout);
+    log::debug!("result: {:?} {:?}", id, layout);
 }
 #[test]
 fn flex_grow_within_constrained_min_row() {
+    let _ = env_logger::Builder::from_env(env_logger::Env::default()).try_init();
     let mut layout_tree = pi_flex_layout::prelude::LayoutTree::default();
     let node_1 = layout_tree.create_node();
     layout_tree.insert(

@@ -232,11 +232,13 @@ impl<K: Null + Clone> CalcContext<K> {
         &mut self,
         id: K,
         text: &mut Vec<CharNode>,
+        word_spacing: f32,
+        letter_spacing: f32,
         line: &mut LineInfo,
         overflow_wrap: OverflowWrap,
     ) {
         out_any!(
-            println,
+            log::debug,
             // log::trace,
             "text_layout, id:{:?}, text: {:?}",
             &id,
@@ -273,6 +275,17 @@ impl<K: Null + Clone> CalcContext<K> {
                     panic!("")
                 },
             );
+            // 计算间距，
+            let spacing = if char_index == 0 {
+                // 如果为第一个字符， 则间距为0
+                0.0
+            } else if char_node.ch == char::from(0) {
+                // 容器节点， 间距为letter_spacing + word_spacing
+                letter_spacing + word_spacing
+            } else {
+                // 其余为字符节点， 间距为letter_spacing
+                letter_spacing
+            };
             let mut info = RelNodeInfo {
                 id: id.clone(),
                 grow: 0.0,
@@ -280,7 +293,7 @@ impl<K: Null + Clone> CalcContext<K> {
                 main: main_d,
                 cross: cross_d,
                 margin_main: 0.0,
-                margin_main_start: Number::default(),
+                margin_main_start: Number::Defined(spacing),
                 margin_main_end: Number::default(),
                 margin_cross_start: Number::default(),
                 margin_cross_end: Number::default(),
@@ -468,7 +481,7 @@ impl<K> TempNode<K> {
         }
         unsafe { PP += 1 };
         out_any!(
-            println,
+            log::debug,
             // log::trace,
             "{:?}reline: line:{:?}",
             ppp(),
@@ -606,7 +619,7 @@ impl LineInfo {
         {
             self.cross += self.item.cross;
             out_any!(
-                println,
+                log::debug,
                 // log::trace,
                 "breakline, self.cross:{:?}, self.item.cross: {:?}",
                 self.cross,
@@ -787,7 +800,7 @@ pub fn cross_calc<K>(
     baseline: &mut Number,
 ) -> (f32, f32) {
     out_any!(
-        println,
+        log::debug,
         // log::trace,
         "{:?}cross_calc, start:{:?}, end:{:?}, info:{:?}",
         ppp(),
@@ -1004,7 +1017,7 @@ pub fn calc_margin(
         start = end - size;
     } else {
         out_any!(
-            println,
+            log::debug,
             // log::trace,
             "calc_margin auto=============end: {:?}, start:{:?}, size:{:?}",
             end,

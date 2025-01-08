@@ -1,4 +1,3 @@
-
 use bitflags::bitflags;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -34,7 +33,6 @@ bitflags! {
     }
 }
 impl NodeState {
-
     pub(crate) fn set_true(&mut self, s: Self) {
         *self |= s;
     }
@@ -44,7 +42,8 @@ impl NodeState {
 }
 impl Default for NodeState {
     fn default() -> Self {
-        NodeState::ChildrenAbs | NodeState::ChildrenRect
+        NodeState::ChildrenAbs
+            | NodeState::ChildrenRect
             | NodeState::ChildrenNoAlignSelf
             | NodeState::ChildrenIndex
     }

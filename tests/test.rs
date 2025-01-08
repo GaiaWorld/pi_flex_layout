@@ -7,6 +7,7 @@ fn print<T: pi_flex_layout::prelude::LayoutR + std::fmt::Debug>(
 }
 #[test]
 fn child_min_max_width_flexing() {
+    let _ = env_logger::Builder::from_env(env_logger::Env::default()).try_init();
     let mut layout_tree = pi_flex_layout::prelude::LayoutTree::default();
     let node_1 = layout_tree.create_node();
     layout_tree.insert(

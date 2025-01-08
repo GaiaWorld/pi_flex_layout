@@ -141,7 +141,7 @@ where
     ) {
         let style = &self.style.get(id);
         out_any!(
-            println,
+            log::debug,
             // log::trace,
             "abs_layout, id:{:?}, containing_block: {:?}, style: {:?}, display: {:?}",
             id,
@@ -219,7 +219,7 @@ where
         );
 
         out_any!(
-            println,
+            log::debug,
             // log::trace,
             "abs_layout, id:{:?} size:{:?} walign: {:?}, halign: {:?} position:{:?}, margin: {:?}, flex_direction {:?}, w: {:?}, x: {:?}, h: {:?}, y: {:?}",
             id,
@@ -264,7 +264,7 @@ where
                 direction,
             );
             out_any!(
-                println,
+                log::debug,
                 // log::trace,
                 "calc_rect: id: {:?}, size:{:?}",
                 id,
@@ -335,7 +335,7 @@ where
     ) {
         let style = &self.style.get(id);
         out_any!(
-            println,
+            log::debug,
             // log::trace,
             "rel_layout, id:{:?}, style: {:?}, display: {:?}",
             id,
@@ -381,7 +381,7 @@ where
                 bottom: height.0 + height.1,
             };
             out_any!(
-                println,
+                log::debug,
                 // log::trace,
                 "set_layout text: {:?}, {:?}",
                 Rect {
@@ -496,7 +496,7 @@ where
         direction: Direction,
     ) -> (Size<f32>, TempNodeType<K>) {
         out_any!(
-            println,
+            log::debug,
             // log::trace,
             "{:?}auto_children_layout1: id:{:?} head:{:?} tail:{:?} is_notify:{:?}",
             ppp(),
@@ -516,7 +516,7 @@ where
             direction,
         );
         out_any!(
-            println,
+            log::debug,
             // log::trace,
             "{:?}auto_children_layout2: id:{:?}, size:{:?}, is_row: {:?}, is_fix: {:?}",
             ppp(),
@@ -551,7 +551,7 @@ where
     ) {
         let mut line = LineInfo::default();
         out_any!(
-            println,
+            log::debug,
             // log::trace,
             "{:?}do_layout1, id:{:?} is_notify:{:?}, is_text: {:?}, child_head: {:?}, , child_tail: {:?}, children_index: {:?}, direction: {:?},",
             ppp(),
@@ -563,7 +563,14 @@ where
         if is_text {
             let i_node = &mut self.i_nodes[id];
             let style = self.style.get(id);
-            cache.text_layout(id, &mut i_node.text, &mut line, style.overflow_wrap());
+            cache.text_layout(
+                id,
+                &mut i_node.text,
+                style.word_spacing(),
+                style.letter_spacing(),
+                &mut line,
+                style.overflow_wrap(),
+            );
         } else {
             self.children_layout(
                 cache,
@@ -581,7 +588,7 @@ where
         line.cross += line.item.cross;
 
         out_any!(
-            println,
+            log::debug,
             // log::trace,
             "{:?}do_layout2, id:{:?} line:{:?}, vec:{:?}, Cache:{:?}",
             ppp(),
@@ -610,7 +617,7 @@ where
         i_node.state.set_false(NodeState::default());
         i_node.state.set_true(cache.state);
         out_any!(
-            println,
+            log::debug,
             // log::trace,
             "do_layout3: id:{:?}, main_cross:{:?}",
             id,
@@ -695,7 +702,7 @@ where
             }
             let style = self.style.get(child);
             out_any!(
-                println,
+                log::debug,
             // log::trace,
                 "children_layout1, id:{:?}, next: {:?}, style: {:?}, is_vnode: {:?}, is_notify: {:?}",
                 child,
@@ -745,7 +752,7 @@ where
             let h = calc_number(style.height(), content_box_size.height);
             let basis = style.flex_basis();
             out_any!(
-                println,
+                log::debug,
             // log::trace,
             "children_layout2, id: {:?}, padding_box_size:{:?}, Cache:{:?}, is_row:{:?}, w:{:?}, h:{:?}, basis: {:?}", id, padding_box_size, (cache.min_size, cache.main, cache.cross), cache.temp.row, w, h, basis);
             let (mut main, cross) = cache.temp.main_cross(w, h);
@@ -803,7 +810,7 @@ where
                 main_result_maybe_ok: false,
             };
             out_any!(
-                println,
+                log::debug,
                 // log::trace,
                 "children_layout3,info:{:?}, ",
                 &info
@@ -826,7 +833,7 @@ where
                         && cache.temp.flex.align_items != AlignItems::Stretch;
                 }
                 out_any!(
-                    println,
+                    log::debug,
                     // log::trace,
                     "{:?}children_layout4: id:{:?} fix:{:?} size:{:?} next:{:?}",
                     ppp(),
@@ -850,7 +857,7 @@ where
                     Size::new(max_width, max_height),
                 );
                 out_any!(
-                    println,
+                    log::debug,
                     // log::trace,
                     "children_layout5 cache_new: {:?}",
                     (
@@ -884,7 +891,7 @@ where
             } else {
                 // 确定大小的节点， TempType为None
                 out_any!(
-                    println,
+                    log::debug,
                     // log::trace,
                     "children_layout6: id:{:?} size:{:?} next:{:?}",
                     id,
@@ -919,7 +926,7 @@ where
                 cache.add_heap(line, order, info, temp);
             };
             out_any!(
-                println,
+                log::debug,
                 // log::trace,
                 "children_layout7,line:{:?}, ",
                 &line
@@ -944,7 +951,7 @@ where
         rect: Rect<f32>,
     ) {
         out_any!(
-            println,
+            log::debug,
             // log::trace,
             "{:?}set_layout: containing_block_size:{:?} id:{:?} head:{:?} tail:{:?} state:{:?}",
             ppp(),
@@ -1027,7 +1034,7 @@ where
         line: &LineInfo,
     ) {
         out_any!(
-            println,
+            log::debug,
             // log::trace,
             "{:?}temp_line_layout: style:{:?} content_box_size:{:?} main_cross:{:?}, line:{:?}",
             ppp(),
@@ -1152,7 +1159,7 @@ where
         };
         for item in line.items.iter() {
             out_any!(
-                println,
+                log::debug,
                 // log::trace,
                 "temp_line_layout1, item: {:?}, split: {:?}, pos: {:?}",
                 item,
@@ -1173,7 +1180,7 @@ where
             );
         }
         out_any!(
-            println,
+            log::debug,
             // log::trace,
             "temp_line_layout2, item: {:?}, split: {:?}, pos: {:?}, cross:{:?}",
             &line.item,
@@ -1212,7 +1219,7 @@ where
             return;
         }
         out_any!(
-            println,
+            log::debug,
             // log::trace,
             "{:?}temp_single_line1: normal:{:?} content_box_size:{:?}, cross:{:?} start_end:{:?} main:{:?}",
             ppp(),
@@ -1345,7 +1352,7 @@ where
             }
         };
         out_any!(
-            println,
+            log::debug,
             // log::trace,
             "{:?}temp_single_line2 calc: pos:{:?} split:{:?}",
             ppp(),

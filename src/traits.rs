@@ -74,6 +74,9 @@ pub trait FlexLayoutStyle {
 
     fn overflow_wrap(&self) -> OverflowWrap;
     fn auto_reduce(&self) -> bool;
+
+    fn letter_spacing(&self) -> f32;
+    fn word_spacing(&self) -> f32;
 }
 
 pub trait Get<K> {

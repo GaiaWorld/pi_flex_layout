@@ -297,7 +297,7 @@ impl GrowShrinkContext {
             el.result = r;
             self.amount += el.result;
         }
-        // println!("self.shrink:{} fix_weight:{}  fix_basis:{} re_basis:{} re_calc:{}", self.shrink, fix_weight, fix_basis, re_basis, re_calc);
+        // log::debug!("self.shrink:{} fix_weight:{}  fix_basis:{} re_basis:{} re_calc:{}", self.shrink, fix_weight, fix_basis, re_basis, re_calc);
         while re_calc {
             let weight = self.shrink_weight - fix_weight;
             let weight_basis = self.length - fix_basis - re_basis;
@@ -366,7 +366,7 @@ impl GrowShrinkContext {
             el.result = r;
             self.amount += el.result;
         }
-        // println!("fix_weight:{} re_basis:{} re_calc:{}", fix_weight, re_basis, re_calc);
+        // log::debug!("fix_weight:{} re_basis:{} re_calc:{}", fix_weight, re_basis, re_calc);
         while re_calc {
             let weight = self.grow_weight - fix_weight;
             let weight_basis = main - fix_basis - re_basis;

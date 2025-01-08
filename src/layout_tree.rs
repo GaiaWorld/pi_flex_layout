@@ -48,6 +48,9 @@ pub struct Style {
 
     pub overflow_wrap: OverflowWrap,
     pub auto_reduce: bool,
+
+    pub letter_spacing: f32,
+    pub word_spacing: f32,
 }
 
 impl FlexLayoutStyle for Style {
@@ -210,6 +213,14 @@ impl FlexLayoutStyle for Style {
     }
     fn auto_reduce(&self) -> bool {
         self.auto_reduce
+    }
+
+    fn letter_spacing(&self) -> f32 {
+        self.letter_spacing
+    }
+
+    fn word_spacing(&self) -> f32 {
+        self.word_spacing
     }
 }
 

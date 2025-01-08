@@ -1,12 +1,13 @@
-fn print<T: pi_flex_layout::prelude::LayoutR + std::fmt::Debug>(
+pub fn print<T: pi_flex_layout::prelude::LayoutR + std::fmt::Debug>(
     _arg: &mut (),
     id: pi_slotmap_tree::TreeKey,
     layout: &T,
 ) {
-    println!("result: {:?} {:?}", id, layout);
+    log::debug!("result: {:?} {:?}", id, layout);
 }
 #[test]
 fn flex_direction_row_reverse() {
+    let _ = env_logger::Builder::from_env(env_logger::Env::default()).try_init();
     let mut layout_tree = pi_flex_layout::prelude::LayoutTree::default();
     let node_1 = layout_tree.create_node();
     layout_tree.insert(
@@ -112,16 +113,16 @@ fn flex_direction_row_reverse() {
     let layout = layout_tree.get_layout(node_3).unwrap();
     assert_eq!((layout.rect.right - layout.rect.left).round(), 10f32);
     assert_eq!((layout.rect.bottom - layout.rect.top).round(), 0f32);
-    assert_eq!(layout.rect.left.round(), 20f32);
+    assert_eq!(layout.rect.left.round(), 90f32);
     assert_eq!(layout.rect.top.round(), 0f32);
     let layout = layout_tree.get_layout(node_4).unwrap();
     assert_eq!((layout.rect.right - layout.rect.left).round(), 10f32);
     assert_eq!((layout.rect.bottom - layout.rect.top).round(), 0f32);
-    assert_eq!(layout.rect.left.round(), 10f32);
+    assert_eq!(layout.rect.left.round(), 80f32);
     assert_eq!(layout.rect.top.round(), 0f32);
     let layout = layout_tree.get_layout(node_5).unwrap();
     assert_eq!((layout.rect.right - layout.rect.left).round(), 10f32);
     assert_eq!((layout.rect.bottom - layout.rect.top).round(), 0f32);
-    assert_eq!(layout.rect.left.round(), 0f32);
+    assert_eq!(layout.rect.left.round(), 70f32);
     assert_eq!(layout.rect.top.round(), 0f32);
 }

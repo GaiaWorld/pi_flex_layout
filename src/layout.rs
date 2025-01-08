@@ -85,7 +85,7 @@ where
             out_any!(log::trace, "compute, {:?}", &dirty);
         }
         for (id, _layer) in dirty.iter() {
-            // println_any!("layout======{:?}, {:?}", id, _layer);
+            // log::debug_any!("layout======{:?}, {:?}", id, _layer);
             let (_node, i_node) = match self.0.tree.get_layer(*id) {
                 Some(n) => (n, &mut self.0.i_nodes[*id]),
                 _ => continue,
@@ -345,7 +345,7 @@ where
     //     0
     // }
     // 设置节点children_dirty脏, 如果节点是size=auto并且不是绝对定位,也不是虚拟节点, 则继续设置其父节点children_dirty脏
-    fn mark_children_dirty(&mut self, dirty: &mut LayerDirty<K>, mut id: K) {
+    pub fn mark_children_dirty(&mut self, dirty: &mut LayerDirty<K>, mut id: K) {
         while !id.is_null() {
             let i_node = &mut self.0.i_nodes[id];
             let layer = self.0.tree.get_layer(id).map_or(usize::null(), |l| l);

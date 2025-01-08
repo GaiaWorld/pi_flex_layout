@@ -13,20 +13,22 @@ extern crate serde;
 
 mod calc;
 mod geometry;
+mod layout;
+mod layout_context;
 mod layout_tree;
+mod node_state;
 mod number;
 pub mod style;
-mod layout;
 mod traits;
-mod layout_context;
-mod node_state;
 
 pub mod prelude {
-    pub use crate::traits::*;
-    pub use crate::layout_context::*;
+    pub use crate::calc::{CharNode, INode};
     pub use crate::geometry::*;
+    pub use crate::layout::*;
+    pub use crate::layout_context::*;
     pub use crate::layout_tree::*;
+    pub use crate::node_state::NodeState;
     pub use crate::number::*;
     pub use crate::style::*;
-    pub use crate::layout::*;
+    pub use crate::traits::*;
 }
