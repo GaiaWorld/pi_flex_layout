@@ -147,7 +147,7 @@ impl INode {
 // 计算时使用的上下文
 pub struct CalcContext<K> {
     pub border_gap_size: Size<f32>,
-    pub padding_gap_size: Size<f32>,
+    pub padding_gap: SideGap<f32>,
     // 布局容器的 最小大小
     pub min_size: Size<f32>,
     // 主轴的大小, 用于约束换行，该值需要参考节点设置的width或height，以及max_width或max_height, 如果都未设置，则该值为无穷大
@@ -172,7 +172,7 @@ pub struct CalcContext<K> {
 impl<K> CalcContext<K> {
     pub fn new(
         border_gap_size: Size<f32>,
-        padding_gap_size: Size<f32>,
+        padding_gap: SideGap<f32>,
         flex: ContainerStyle,
         size: Size<Number>,
         min_size: Size<Number>,
@@ -180,7 +180,7 @@ impl<K> CalcContext<K> {
     ) -> Self {
         // 计算主轴和交叉轴，及大小
         let row = flex.flex_direction.is_row();
-        let gap_size = border_gap_size + padding_gap_size;
+        let gap_size = border_gap_size + padding_gap.gap_size();
         let (main, cross, max_main, min_main, min_cross, gap) = if row {
             (
                 size.width,
@@ -208,7 +208,7 @@ impl<K> CalcContext<K> {
         unsafe { PP += 1 };
         CalcContext {
             border_gap_size,
-            padding_gap_size,
+            padding_gap,
             min_size: Size::new(
                 gap_size.width.max(min_size.width.or_else(0.0)),
                 gap_size.height.max(min_size.height.or_else(0.0)),
@@ -893,6 +893,8 @@ pub fn calc_rect(
     size: Number,
     margin_start: Dimension,
     margin_end: Dimension,
+    padding_start: f32,
+    padding_end: f32,
     parent: f32,
     containing_block_width: f32,
     align: isize,
@@ -901,36 +903,30 @@ pub fn calc_rect(
         r
     } else {
         // 通过明确的前后确定大小
-        let mut rr = if let Dimension::Points(rr) = start {
+        let mut start_r = if let Dimension::Points(rr) = start {
             rr
         } else if let Dimension::Percent(rr) = start {
             parent * rr
         } else {
             return (
                 Number::Undefined,
-                if let Dimension::Points(rrr) = end {
-                    parent - rrr - margin_end.resolve_value(containing_block_width)
-                } else if let Dimension::Percent(rrr) = end {
-                    parent - parent * rrr - margin_end.resolve_value(containing_block_width)
-                } else {
-                    0.0
-                },
+                0.0 // 这个时候的位置没有意义，需要大小明确后再次计算
             );
         };
-        let mut rrr = if let Dimension::Points(rrr) = end {
+        let mut end_r = if let Dimension::Points(rrr) = end {
             rrr
         } else if let Dimension::Percent(rrr) = end {
             parent * rrr
         } else {
             return (
                 Number::Undefined,
-                margin_start.resolve_value(containing_block_width),
+                start_r + margin_start.resolve_value(containing_block_width),
             );
         };
 
-        rr += margin_start.resolve_value(containing_block_width);
-        rrr += margin_end.resolve_value(containing_block_width);
-        return (Number::Defined(parent - rr - rrr), rr);
+        start_r += margin_start.resolve_value(containing_block_width);
+        end_r += margin_end.resolve_value(containing_block_width);
+        return (Number::Defined(parent - start_r - end_r), start_r);
     };
 
     let calc_start = if let Dimension::Points(rr) = start {
@@ -939,7 +935,7 @@ pub fn calc_rect(
     } else if let Dimension::Percent(rr) = start {
         parent * rr
     } else {
-        let rrr = if let Dimension::Points(rrr) = end {
+        let end_r: f32 = if let Dimension::Points(rrr) = end {
             rrr
         } else if let Dimension::Percent(rrr) = end {
             parent * rrr
@@ -959,9 +955,16 @@ pub fn calc_rect(
                 // 后对齐
                 return (
                     Number::Defined(calc_size),
-                    parent - margin_end.resolve_value(containing_block_width) - calc_size,
+                    parent - margin_end.resolve_value(containing_block_width) - padding_end - calc_size,
                 );
             } else {
+                if start == Dimension::Undefined {
+                    // 解决当绝对定位时，没有定义start和end时， 前对齐时默认的位置为padding
+                    return (
+                        Number::Defined(calc_size),
+                        margin_start.resolve_value(containing_block_width) + padding_start
+                    )
+                }
                 // 前对齐
                 return (
                     Number::Defined(calc_size),
@@ -971,7 +974,7 @@ pub fn calc_rect(
         };
         return (
             Number::Defined(calc_size),
-            parent - rrr - margin_end.resolve_value(containing_block_width) - calc_size,
+            parent - end_r - margin_end.resolve_value(containing_block_width) - calc_size,
         );
     };
     // size为Percent或Points、 start为Percent或Points

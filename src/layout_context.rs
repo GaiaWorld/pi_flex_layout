@@ -137,6 +137,7 @@ where
         child_tail: K,
         state: NodeState,
         containing_block_size: Size<f32>,
+        parent_padding: SideGap<f32>,
         flex: &ContainerStyle,
     ) {
         let style = &self.style.get(id);
@@ -199,6 +200,8 @@ where
             ),
             style.margin_left(),
             style.margin_right(),
+            parent_padding.left,
+            parent_padding.right,
             containing_block_size.width,
             containing_block_size.width,
             walign,
@@ -213,6 +216,8 @@ where
             ),
             style.margin_top(),
             style.margin_bottom(),
+            parent_padding.top,
+            parent_padding.bottom,
             containing_block_size.height,
             containing_block_size.width,
             halign,
@@ -243,7 +248,7 @@ where
 
             let mut cache = CalcContext::new(
                 calc_gap_by_containing_block(&containing_block_size, &border).gap_size(),
-                calc_gap_by_containing_block(&containing_block_size, &padding).gap_size(),
+                calc_gap_by_containing_block(&containing_block_size, &padding),
                 style.container_style(),
                 Size::new(
                     calc_length(w, min_width, max_width),
@@ -277,6 +282,8 @@ where
                 Number::Defined(size.width),
                 margin.left,
                 margin.right,
+                parent_padding.left,
+                parent_padding.right,
                 containing_block_size.width,
                 containing_block_size.width,
                 walign,
@@ -287,6 +294,8 @@ where
                 Number::Defined(size.height),
                 margin.top,
                 margin.bottom,
+                parent_padding.top,
+                parent_padding.bottom,
                 containing_block_size.height,
                 containing_block_size.width,
                 halign,
@@ -438,6 +447,7 @@ where
             );
             let padding_box_size = abs_containing_block_size(&layout);
             let content_box_size = rel_containing_block_size(&layout);
+            let padding_gap = *layout.padding();
             let mc = t.main_cross(content_box_size.width, content_box_size.height);
             let line = t.reline(mc.0, mc.1);
             // 如果有临时缓存子节点数组
@@ -445,6 +455,7 @@ where
                 t,
                 padding_box_size,
                 Size::new(mc.0, mc.1),
+                padding_gap,
                 mc.0,
                 mc.1,
                 &line,
@@ -528,7 +539,7 @@ where
         let (w, h) = cache.temp.main_cross(cache.main_value, cache.cross_value);
         (
             // 按照盒子模型， 返回宽高，该宽高包括了边框和空白
-            Size::new(w, h) + cache.border_gap_size + cache.padding_gap_size,
+            Size::new(w, h) + cache.border_gap_size + cache.padding_gap.gap_size(),
             if is_fix {
                 TempNodeType::AutoOk
             } else {
@@ -630,8 +641,9 @@ where
             let size = Size::new(w, h);
             self.temp_line_layout(
                 &mut cache.temp,
-                size + cache.padding_gap_size,
+                size + cache.padding_gap.gap_size(),
                 size,
+                cache.padding_gap,
                 cache.main_value,
                 cache.cross_value,
                 &line,
@@ -657,7 +669,7 @@ where
         direction: Direction,
     ) {
         let padding_box_size = cache.min_size - cache.border_gap_size;
-        let content_box_size = cache.min_size - cache.border_gap_size - cache.padding_gap_size;
+        let content_box_size = cache.min_size - cache.border_gap_size - cache.padding_gap.gap_size();
         while !child.is_null() {
             let (next, prev) = self
                 .tree
@@ -690,6 +702,7 @@ where
                         child_tail,
                         state,
                         padding_box_size,
+                        cache.padding_gap,
                         &cache.temp.flex,
                     );
                 } else {
@@ -847,7 +860,7 @@ where
                 let is_text = i_node.text.len() > 0;
                 let mut cache_new = CalcContext::new(
                     calc_gap_by_containing_block(&content_box_size, &border).gap_size(),
-                    calc_gap_by_containing_block(&content_box_size, &padding).gap_size(),
+                    calc_gap_by_containing_block(&content_box_size, &padding),
                     style.container_style(),
                     Size::new(
                         calc_length(w, min_width, max_width),
@@ -1005,7 +1018,7 @@ where
         // 宽高变动重新布局
         let mut cache = CalcContext::new(
             layout.border().gap_size(),
-            layout.padding().gap_size(),
+            *layout.padding(),
             flex,
             Size::new(Number::Defined(size.width), Number::Defined(size.height)),
             Size::new(Number::Defined(size.width), Number::Defined(size.height)),
@@ -1029,6 +1042,7 @@ where
         temp: &mut TempNode<K>,
         padding_box_size: Size<f32>,
         content_box_size: Size<f32>,
+        padding_gap: SideGap<f32>,
         main: f32,
         cross: f32,
         line: &LineInfo,
@@ -1045,7 +1059,7 @@ where
         );
         // 处理abs_vec
         for e in temp.abs_vec.iter() {
-            self.abs_layout(e.0, e.4, e.1, e.2, e.3, padding_box_size, &temp.flex);
+            self.abs_layout(e.0, e.4, e.1, e.2, e.3, padding_box_size, padding_gap, &temp.flex);
         }
         let normal = !temp.flex.flex_direction.is_reverse();
         let mut start = 0;

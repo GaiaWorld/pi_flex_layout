@@ -146,6 +146,7 @@ where
                     child_tail,
                     state,
                     Size::default(),
+                    SideGap::default(),
                     &flex,
                 );
             } else if state.contains(NodeState::Abs) && state.contains(NodeState::SelfRect) {
@@ -158,11 +159,12 @@ where
                     child_tail,
                     state,
                     Size::default(),
+                    SideGap::default(),
                     &style.container_style(),
                 );
             } else if state.contains(NodeState::Abs) {
                 // 如果节点是绝对定位， 则重新计算自身的布局数据
-                let layout = self.0.layout_map.get_mut(parent);
+                let layout: LR = self.0.layout_map.get_mut(parent);
                 let style = self.0.style.get(parent);
                 self.0.abs_layout(
                     *id,
@@ -171,6 +173,7 @@ where
                     child_tail,
                     state,
                     abs_containing_block_size(&layout),
+                    *layout.padding(),
                     &style.container_style(),
                 );
             } else {
