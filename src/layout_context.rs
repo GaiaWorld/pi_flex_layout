@@ -90,6 +90,7 @@ where
         start: &mut usize,
         end: usize,
         content_box_size: Size<f32>,
+        parent_padding: &SideGap<f32>,
         cross_start: f32,
         cross_end: f32,
         mut pos: f32,
@@ -109,7 +110,7 @@ where
                     temp.flex.align_items,
                     &mut baseline,
                 );
-                self.layout_temp_node(info.id, main, cross, temp_type, content_box_size);
+                self.layout_temp_node(info.id, main, cross, temp_type, content_box_size, parent_padding);
             }
         } else {
             while *start < end {
@@ -123,7 +124,7 @@ where
                     temp.flex.align_items,
                     &mut baseline,
                 );
-                self.layout_temp_node(info.id, cross, main, temp_type, content_box_size);
+                self.layout_temp_node(info.id, cross, main, temp_type, content_box_size, parent_padding);
             }
         }
     }
@@ -136,7 +137,7 @@ where
         child_head: K,
         child_tail: K,
         state: NodeState,
-        containing_block_size: Size<f32>,
+        padding_box_size: Size<f32>,
         parent_padding: SideGap<f32>,
         flex: &ContainerStyle,
     ) {
@@ -146,7 +147,7 @@ where
             // log::trace,
             "abs_layout, id:{:?}, containing_block: {:?}, style: {:?}, display: {:?}",
             id,
-            containing_block_size,
+            padding_box_size,
             style,
             style.display()
         );
@@ -184,17 +185,17 @@ where
             (a2, a1)
         };
         let (min_width, max_width, min_height, max_height) = (
-            calc_number(style.min_width(), containing_block_size.width),
-            calc_number(style.max_width(), containing_block_size.width),
-            calc_number(style.min_height(), containing_block_size.height),
-            calc_number(style.max_height(), containing_block_size.height),
+            calc_number(style.min_width(), padding_box_size.width),
+            calc_number(style.max_width(), padding_box_size.width),
+            calc_number(style.min_height(), padding_box_size.height),
+            calc_number(style.max_height(), padding_box_size.height),
         );
         // 计算大小和位置
         let (w, x) = calc_rect(
             style.position_left(),
             style.position_right(),
             calc_length(
-                calc_number(style.width(), containing_block_size.width),
+                calc_number(style.width(), padding_box_size.width),
                 min_width,
                 max_width,
             ),
@@ -202,15 +203,15 @@ where
             style.margin_right(),
             parent_padding.left,
             parent_padding.right,
-            containing_block_size.width,
-            containing_block_size.width,
+            padding_box_size.width,
+            padding_box_size.width,
             walign,
         );
         let (h, y) = calc_rect(
             style.position_top(),
             style.position_bottom(),
             calc_length(
-                calc_number(style.height(), containing_block_size.height),
+                calc_number(style.height(), padding_box_size.height),
                 min_height,
                 max_height,
             ),
@@ -218,8 +219,8 @@ where
             style.margin_bottom(),
             parent_padding.top,
             parent_padding.bottom,
-            containing_block_size.height,
-            containing_block_size.width,
+            padding_box_size.height,
+            padding_box_size.width,
             halign,
         );
 
@@ -247,8 +248,8 @@ where
             let padding = style.padding();
 
             let mut cache = CalcContext::new(
-                calc_gap_by_containing_block(&containing_block_size, &border).gap_size(),
-                calc_gap_by_containing_block(&containing_block_size, &padding),
+                calc_gap_by_containing_block(&padding_box_size, &border).gap_size(),
+                calc_gap_by_containing_block(&padding_box_size, &padding),
                 style.container_style(),
                 Size::new(
                     calc_length(w, min_width, max_width),
@@ -284,8 +285,8 @@ where
                 margin.right,
                 parent_padding.left,
                 parent_padding.right,
-                containing_block_size.width,
-                containing_block_size.width,
+                padding_box_size.width,
+                padding_box_size.width,
                 walign,
             );
             let (h, y) = calc_rect(
@@ -296,8 +297,8 @@ where
                 margin.bottom,
                 parent_padding.top,
                 parent_padding.bottom,
-                containing_block_size.height,
-                containing_block_size.width,
+                padding_box_size.height,
+                padding_box_size.width,
                 halign,
             );
 
@@ -308,8 +309,7 @@ where
                 self.notify.clone(),
                 self.notify_arg,
                 id,
-                containing_block_size,
-                true,
+                padding_box_size,
                 Rect::new(x, y, w.or_else(0.0), h.or_else(0.0)),
                 &border,
                 &padding,
@@ -325,8 +325,7 @@ where
                 style.border(),
                 style.padding(),
                 state,
-                containing_block_size,
-                true,
+                padding_box_size,
                 Rect::new(x, y, w.or_else(0.0), h.or_else(0.0)),
             );
         };
@@ -340,7 +339,8 @@ where
         child_head: K,
         child_tail: K,
         state: NodeState,
-        containing_block_size: Size<f32>,
+        padding_box_size: Size<f32>,
+        parent_padding: SideGap<f32>,
     ) {
         let style = &self.style.get(id);
         out_any!(
@@ -365,8 +365,7 @@ where
             style.border(),
             style.padding(),
             state,
-            containing_block_size,
-            false,
+            padding_box_size - parent_padding.gap_size(),
             rect,
         );
     }
@@ -377,7 +376,8 @@ where
         width: (f32, f32),
         height: (f32, f32),
         temp: &mut TempNodeType<K>,
-        containing_block_size: Size<f32>,
+        content_box_size: Size<f32>,
+        parent_padding: &SideGap<f32>,
     ) {
         let i_node = &mut self.i_nodes[id];
         if let TempNodeType::CharIndex(r) = temp {
@@ -408,7 +408,7 @@ where
         let direction = s.direction();
         let border = s.border();
         let padding = s.padding();
-        let is_abs = i_node.state.contains(NodeState::Abs);
+        // let is_abs = i_node.state.contains(NodeState::Abs);
         let (child_head, child_tail) = self
             .tree
             .get_down(id)
@@ -421,15 +421,15 @@ where
         let x = calc_pos(
             s.position_left(),
             s.position_right(),
-            containing_block_size.width,
+            content_box_size.width,
             width.0,
-        );
+        ) + parent_padding.left;
         let y = calc_pos(
             s.position_top(),
             s.position_bottom(),
-            containing_block_size.height,
+            content_box_size.height,
             height.0,
-        );
+        ) + parent_padding.top;
         // 设置布局的值
         if let TempNodeType::R(t) = temp {
             // 有Auto的节点需要父确定大小，然后自身的temp重计算及布局
@@ -439,15 +439,15 @@ where
                 self.notify,
                 self.notify_arg,
                 id,
-                containing_block_size,
-                is_abs,
+                content_box_size,
+                // is_abs,
                 Rect::new(x, y, width.1, height.1),
                 &border,
                 &padding,
             );
-            let padding_box_size = abs_containing_block_size(&layout);
-            let content_box_size = rel_containing_block_size(&layout);
-            let padding_gap = *layout.padding();
+            let padding_box_size = padding_box_size(&layout);
+            let padding_gap: SideGap<f32> = *layout.padding();
+            let content_box_size = padding_box_size - layout.padding().gap_size();
             let mc = t.main_cross(content_box_size.width, content_box_size.height);
             let line = t.reline(mc.0, mc.1);
             // 如果有临时缓存子节点数组
@@ -473,8 +473,8 @@ where
                 border,
                 padding,
                 state,
-                containing_block_size,
-                is_abs,
+                content_box_size,
+                // is_abs,
                 Rect::new(x, y, width.1, height.1),
             );
         } else {
@@ -485,8 +485,8 @@ where
                 self.notify,
                 self.notify_arg,
                 id,
-                containing_block_size,
-                is_abs,
+                content_box_size,
+                // is_abs,
                 Rect::new(x, y, width.1, height.1),
                 &border,
                 &padding,
@@ -960,7 +960,7 @@ where
         padding: SideGap<Dimension>,
         state: NodeState,
         containing_block_size: Size<f32>,
-        is_abs: bool,
+        // parent_padding: SideGap<f32>,
         rect: Rect<f32>,
     ) {
         out_any!(
@@ -988,7 +988,6 @@ where
                 self.notify_arg,
                 id,
                 containing_block_size,
-                is_abs,
                 rect,
                 &border,
                 &padding,
@@ -1073,6 +1072,7 @@ where
                 &mut start,
                 temp.rel_vec.len(),
                 content_box_size,
+                &padding_gap,
                 0.0,
                 cross,
                 normal,
@@ -1150,6 +1150,7 @@ where
                             &mut start,
                             item.count,
                             content_box_size,
+                            &padding_gap,
                             cross_start,
                             cross_end,
                             normal,
@@ -1163,6 +1164,7 @@ where
                         &mut start,
                         line.item.count,
                         content_box_size,
+                        &padding_gap,
                         cross_start,
                         cross_end,
                         normal,
@@ -1188,6 +1190,7 @@ where
                 &mut start,
                 item.count,
                 content_box_size,
+                &padding_gap,
                 cross_start,
                 cross_end,
                 normal,
@@ -1210,6 +1213,7 @@ where
             &mut start,
             line.item.count,
             content_box_size,
+            &padding_gap,
             cross_start,
             cross_end,
             normal,
@@ -1225,6 +1229,7 @@ where
         start: &mut usize,
         count: usize,
         content_box_size: Size<f32>,
+        parent_padding: &SideGap<f32>,
         cross_start: f32,
         cross_end: f32,
         normal: bool,
@@ -1262,6 +1267,7 @@ where
                     start,
                     end,
                     content_box_size,
+                    parent_padding,
                     cross_start,
                     cross_end,
                     pos,
@@ -1277,6 +1283,7 @@ where
                     start,
                     end,
                     content_box_size,
+                    parent_padding,
                     cross_start,
                     cross_end,
                     pos,
@@ -1298,6 +1305,7 @@ where
                     start,
                     end,
                     content_box_size,
+                    parent_padding,
                     cross_start,
                     cross_end,
                     pos,
@@ -1378,6 +1386,7 @@ where
             start,
             end,
             content_box_size,
+            parent_padding,
             cross_start,
             cross_end,
             pos,

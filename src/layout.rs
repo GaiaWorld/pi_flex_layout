@@ -172,7 +172,7 @@ where
                     child_head,
                     child_tail,
                     state,
-                    abs_containing_block_size(&layout),
+                    padding_box_size(&layout),
                     *layout.padding(),
                     &style.container_style(),
                 );
@@ -185,7 +185,8 @@ where
                     child_head,
                     child_tail,
                     state,
-                    rel_containing_block_size(&layout),
+                    padding_box_size(&layout),
+                    *layout.padding(),
                 );
             }
         }

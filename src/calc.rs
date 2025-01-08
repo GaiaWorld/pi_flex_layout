@@ -634,26 +634,9 @@ impl LineInfo {
     }
 }
 
-/// 获得相对定位节点对应的包含块containing block的大小及位置， 由内容区（content box）的边缘组成
-pub(crate) fn rel_containing_block_size<T: LayoutR>(l: &T) -> Size<f32> {
-    Size::new(
-        l.rect().right
-            - l.border().right
-            - l.padding().right
-            - l.rect().left
-            - l.border().left
-            - l.padding().left,
-        l.rect().bottom
-            - l.border().bottom
-            - l.padding().bottom
-            - l.rect().top
-            - l.border().top
-            - l.padding().top,
-    )
-}
 /// https://developer.mozilla.org/zh-CN/docs/Web/CSS/Containing_block
 /// 获得节点对应的包含块containing block，绝对定位节点由父内边距区（padding box）的边缘组成， 相对定位节点由父内容区（content box）的边缘组成
-pub(crate) fn abs_containing_block_size<T: LayoutR>(l: &T) -> Size<f32> {
+pub(crate) fn padding_box_size<T: LayoutR>(l: &T) -> Size<f32> {
     Size::new(
         l.rect().right - l.border().right - l.rect().left - l.border().left,
         l.rect().bottom - l.border().bottom - l.rect().top - l.border().top,
@@ -667,7 +650,6 @@ pub fn set_layout_result<T, K, L: LayoutR>(
     notify_arg: &mut T,
     id: K,
     containing_block_size: Size<f32>,
-    is_abs: bool,
     rect: Rect<f32>,
     border: &SideGap<Dimension>,
     padding: &SideGap<Dimension>,
@@ -679,7 +661,7 @@ pub fn set_layout_result<T, K, L: LayoutR>(
     let old_size = layout.rect().size();
     let old_padding_box_size = old_size - layout.border().gap_size();
     let old_content_box_size = old_padding_box_size - layout.padding().gap_size();
-    layout.set_absolute(is_abs);
+    // layout.set_absolute(is_abs);
     layout.set_rect(rect);
     layout.set_border(calc_gap_by_containing_block(&containing_block_size, border));
     layout.set_padding(calc_gap_by_containing_block(
