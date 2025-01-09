@@ -160,7 +160,7 @@ pub enum OverflowWrap {
 }
 
 #[derive(Default, Clone, PartialEq, PartialOrd, Debug)]
-pub struct ContainerStyle {
+pub struct FlexContainerStyle {
     pub flex_direction: FlexDirection,
     pub flex_wrap: FlexWrap,
     pub justify_content: JustifyContent,

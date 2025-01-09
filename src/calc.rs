@@ -5,11 +5,11 @@ use pi_null::Null;
 use pi_slotmap::DefaultKey;
 
 use crate::geometry::*;
+use crate::grow_shrink::*;
 use crate::node_state::*;
 use crate::number::*;
+use crate::prelude::EPSILON;
 use crate::style::*;
-use crate::traits::*;
-// use crate::grow_shrink::*;
 use pi_heap::simple_heap::SimpleHeap;
 use std::cmp::Ordering;
 
@@ -144,8 +144,8 @@ impl INode {
     }
 }
 
-// 计算时使用的上下文
-pub struct CalcContext<K> {
+// Flex计算时使用的上下文
+pub struct FlexCalcContext<K> {
     pub border_gap_size: Size<f32>,
     pub padding_gap: SideGap<f32>,
     // 布局容器的 最小大小
@@ -169,11 +169,11 @@ pub struct CalcContext<K> {
     pub vnode: Vec<K>,
 }
 
-impl<K> CalcContext<K> {
+impl<K> FlexCalcContext<K> {
     pub fn new(
         border_gap_size: Size<f32>,
         padding_gap: SideGap<f32>,
-        flex: ContainerStyle,
+        flex: FlexContainerStyle,
         size: Size<Number>,
         min_size: Size<Number>,
         max_size: Size<Number>,
@@ -206,7 +206,7 @@ impl<K> CalcContext<K> {
             max_calc(main, max_main).or_else(std::f32::INFINITY)
         };
         unsafe { PP += 1 };
-        CalcContext {
+        FlexCalcContext {
             border_gap_size,
             padding_gap,
             min_size: Size::new(
@@ -226,7 +226,7 @@ impl<K> CalcContext<K> {
     }
 }
 
-impl<K: Null + Clone> CalcContext<K> {
+impl<K: Null + Clone> FlexCalcContext<K> {
     // 文字的flex布局
     pub fn text_layout(
         &mut self,
@@ -234,7 +234,7 @@ impl<K: Null + Clone> CalcContext<K> {
         text: &mut Vec<CharNode>,
         word_spacing: f32,
         letter_spacing: f32,
-        line: &mut LineInfo,
+        line: &mut MultiLineInfo,
         overflow_wrap: OverflowWrap,
     ) {
         out_any!(
@@ -331,7 +331,7 @@ impl<K: Null + Clone> CalcContext<K> {
     // 添加到数组中，计算当前行的grow shrink 是否折行及折几行
     pub fn add_vec(
         &mut self,
-        line: &mut LineInfo,
+        line: &mut MultiLineInfo,
         _order: isize,
         info: RelNodeInfo<K>,
         temp: TempNodeType<K>,
@@ -343,7 +343,7 @@ impl<K: Null + Clone> CalcContext<K> {
     // 添加到堆中
     pub fn add_heap(
         &mut self,
-        line: &mut LineInfo,
+        line: &mut MultiLineInfo,
         order: isize,
         info: RelNodeInfo<K>,
         temp: TempNodeType<K>,
@@ -421,17 +421,21 @@ impl<K> Eq for OrderSort<K> {}
 /// 临时缓存节点的样式、大小和子节点数组
 #[derive(Clone, PartialEq, PartialOrd, Debug)]
 pub struct TempNode<K> {
-    pub flex: ContainerStyle,
-    pub abs_vec: Vec<(K, K, K, NodeState, bool)>, // (id, children_head, children_tail, state, is_text) 绝对定位的子节点数组
-    pub rel_vec: Vec<(RelNodeInfo<K>, TempNodeType<K>)>, // 相对定位的子节点数组
+    pub flex: FlexContainerStyle,
+     // (id, children_head, children_tail, state, is_text) 绝对定位的子节点数组
+    pub abs_vec: Vec<(K, K, K, NodeState, bool)>,
+     // 相对定位的子节点数组
+    pub rel_vec: Vec<(RelNodeInfo<K>, TempNodeType<K>)>,
+    // 是否为行布局
     pub row: bool,
-    pub children_percent: bool, // 子节点是否有百分比宽高
+     // 子节点是否有百分比宽高
+    pub children_percent: bool,
 }
 
 impl<K> Default for TempNode<K> {
     fn default() -> Self {
         Self {
-            flex: ContainerStyle::default(),
+            flex: FlexContainerStyle::default(),
             abs_vec: Vec::new(), // (id, children_head, children_tail, state, is_text) 绝对定位的子节点数组
             rel_vec: Vec::new(), // 相对定位的子节点数组
             row: Default::default(),
@@ -441,7 +445,7 @@ impl<K> Default for TempNode<K> {
 }
 
 impl<K> TempNode<K> {
-    fn new(flex: ContainerStyle, row: bool) -> Self {
+    fn new(flex: FlexContainerStyle, row: bool) -> Self {
         TempNode {
             flex,
             row,
@@ -459,8 +463,8 @@ impl<K> TempNode<K> {
     }
 
     // 用缓存的相对定位的子节点数组重建行信息
-    pub fn reline(&mut self, main: f32, cross: f32) -> LineInfo {
-        let mut line = LineInfo::default();
+    pub fn reline(&mut self, main: f32, cross: f32) -> MultiLineInfo {
+        let mut line = MultiLineInfo::default();
         if self.children_percent {
             for r in self.rel_vec.iter_mut() {
                 // 修正百分比的大小
@@ -547,9 +551,9 @@ pub struct RelNodeInfo<K> {
     pub(crate) main_result_maybe_ok: bool,
 }
 
-/// 计算时统计的行信息
+/// 计算时统计的多行信息
 #[derive(Default, Clone, PartialEq, PartialOrd, Debug)]
-pub struct LineInfo {
+pub struct MultiLineInfo {
     pub main: f32,            // 行内节点主轴尺寸的总值，不受basis影响
     pub cross: f32,           // 多行子节点交叉轴的像素的累计值
     pub item: LineItem,       // 当前计算的行margin_auto
@@ -564,7 +568,7 @@ pub struct LineItem {
     pub margin_auto: usize, // 行内节点主轴方向 margin=auto 的数量
     pub main: f32,          // 行内节点主轴尺寸的总值（包括size margin）
     pub cross: f32,         // 行内节点交叉轴尺寸的最大值
-                            // grow_shrink_context: GrowShrinkContext, // 行内节点grow shrink的上下文
+    grow_shrink_context: LineContext, // 行内节点grow shrink的上下文
 }
 
 impl LineItem {
@@ -603,7 +607,7 @@ impl LineItem {
     }
 }
 
-impl LineInfo {
+impl MultiLineInfo {
     // 添加到数组中，计算当前行的grow shrink 是否折行及折几行
     fn add<K>(&mut self, main: f32, info: &RelNodeInfo<K>) {
         out_any!(
@@ -634,69 +638,6 @@ impl LineInfo {
     }
 }
 
-/// https://developer.mozilla.org/zh-CN/docs/Web/CSS/Containing_block
-/// 获得节点对应的包含块containing block，绝对定位节点由父内边距区（padding box）的边缘组成， 相对定位节点由父内容区（content box）的边缘组成
-pub(crate) fn padding_box_size<T: LayoutR>(l: &T) -> Size<f32> {
-    Size::new(
-        l.rect().right - l.border().right - l.rect().left - l.border().left,
-        l.rect().bottom - l.border().bottom - l.rect().top - l.border().top,
-    )
-}
-
-// 设置布局结果，返回是否变动两种内容区大小
-pub fn set_layout_result<T, K, L: LayoutR>(
-    layout: &mut L,
-    notify: fn(&mut T, K, &L),
-    notify_arg: &mut T,
-    id: K,
-    containing_block_size: Size<f32>,
-    rect: Rect<f32>,
-    border: &SideGap<Dimension>,
-    padding: &SideGap<Dimension>,
-) -> bool {
-    unsafe {
-        PC += 1;
-        PP = 0
-    };
-    let old_size = layout.rect().size();
-    let old_padding_box_size = old_size - layout.border().gap_size();
-    let old_content_box_size = old_padding_box_size - layout.padding().gap_size();
-    // layout.set_absolute(is_abs);
-    layout.set_rect(rect);
-    layout.set_border(calc_gap_by_containing_block(&containing_block_size, border));
-    layout.set_padding(calc_gap_by_containing_block(
-        &containing_block_size,
-        padding,
-    ));
-    notify(notify_arg, id, layout);
-    layout.set_finish();
-    let size = layout.rect().size();
-    let padding_box_size = size - layout.border().gap_size();
-    if !(eq_f32(padding_box_size.width, old_padding_box_size.width)
-        && eq_f32(padding_box_size.height, old_padding_box_size.height))
-    {
-        return true;
-    }
-    let content_box_size = padding_box_size - layout.padding().gap_size();
-    !(eq_f32(content_box_size.width, old_content_box_size.width)
-        && eq_f32(content_box_size.height, old_content_box_size.height))
-}
-
-pub const EPSILON: f32 = std::f32::EPSILON * 1024.0;
-#[inline]
-pub fn eq_f32(v1: f32, v2: f32) -> bool {
-    v1 == v2 || ((v2 - v1).abs() <= EPSILON)
-}
-
-// 节点的兄弟节点
-pub fn node_iter<K: Null + Copy + Clone>(direction: Direction, next: K, prev: K) -> K {
-    if direction != Direction::RTL {
-        next
-    } else {
-        // 处理倒排的情况
-        prev
-    }
-}
 
 pub fn grow_calc<K>(info: &RelNodeInfo<K>, per: f32, pos: &mut f32) -> (f32, f32) {
     let size = info.main + info.grow * per;

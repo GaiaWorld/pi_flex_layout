@@ -52,8 +52,7 @@ pub struct Style {
     pub letter_spacing: f32,
     pub word_spacing: f32,
 }
-
-impl FlexLayoutStyle for Style {
+impl BoxStyle for Style {
     fn width(&self) -> Dimension {
         self.size.width
     }
@@ -134,6 +133,47 @@ impl FlexLayoutStyle for Style {
         self.position_type
     }
 
+    fn overflow(&self) -> Overflow {
+        self.overflow
+    }
+
+    fn min_width(&self) -> Dimension {
+        self.min_size.width
+    }
+
+    fn min_height(&self) -> Dimension {
+        self.min_size.height
+    }
+
+    fn max_width(&self) -> Dimension {
+        self.max_size.width
+    }
+
+    fn max_height(&self) -> Dimension {
+        self.max_size.height
+    }
+
+    fn aspect_ratio(&self) -> Number {
+        self.aspect_ratio
+    }
+
+    fn overflow_wrap(&self) -> OverflowWrap {
+        self.overflow_wrap
+    }
+    fn auto_reduce(&self) -> bool {
+        self.auto_reduce
+    }
+
+    fn letter_spacing(&self) -> f32 {
+        self.letter_spacing
+    }
+
+    fn word_spacing(&self) -> f32 {
+        self.word_spacing
+    }
+}
+
+impl FlexLayoutStyle for Style {
     fn direction(&self) -> Direction {
         self.direction
     }
@@ -184,44 +224,6 @@ impl FlexLayoutStyle for Style {
         self.align_self
     }
 
-    fn overflow(&self) -> Overflow {
-        self.overflow
-    }
-
-    fn min_width(&self) -> Dimension {
-        self.min_size.width
-    }
-
-    fn min_height(&self) -> Dimension {
-        self.min_size.height
-    }
-
-    fn max_width(&self) -> Dimension {
-        self.max_size.width
-    }
-
-    fn max_height(&self) -> Dimension {
-        self.max_size.height
-    }
-
-    fn aspect_ratio(&self) -> Number {
-        self.aspect_ratio
-    }
-
-    fn overflow_wrap(&self) -> OverflowWrap {
-        self.overflow_wrap
-    }
-    fn auto_reduce(&self) -> bool {
-        self.auto_reduce
-    }
-
-    fn letter_spacing(&self) -> f32 {
-        self.letter_spacing
-    }
-
-    fn word_spacing(&self) -> f32 {
-        self.word_spacing
-    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -247,10 +249,6 @@ impl<'a> LayoutR for LayoutResultItem<'a> {
     fn padding(&self) -> &SideGap<f32> {
         &self.0.padding
     }
-    fn absolute(&self) -> bool {
-        self.0.absolute
-    }
-
     fn set_rect(&mut self, v: Rect<f32>) {
         self.0.rect = v;
     }
@@ -261,10 +259,6 @@ impl<'a> LayoutR for LayoutResultItem<'a> {
 
     fn set_padding(&mut self, v: SideGap<f32>) {
         self.0.padding = v;
-    }
-
-    fn set_absolute(&mut self, b: bool) {
-        self.0.absolute = b;
     }
 
     fn set_finish(&mut self) {}

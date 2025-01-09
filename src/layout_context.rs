@@ -1,5 +1,6 @@
-//! layout_context和layout, 是用来隔离计算和存储的， 以后将layout合并进layout_context中
-
+//! todo layout_context和layout, 是用来隔离计算和存储的， 以后将layout合并进layout_context中, 通过layout_tree来创建和调用layout_context，外部只操作layout_tree，layout及layout_context的接口也放进layout_tree中
+//! 将temp_line_layout temp_single_line 移动到calc中，calc改为flex_layout, 这样以后可以支持其他布局方式
+//! 
 // LayoutContext{
 
 //     abs_layout // 绝对布局，一般从此开始计算
@@ -77,7 +78,7 @@ impl<'a, K, S, T, L, I, R, LI, LR> LayoutContext<'a, K, S, T, L, I, R, LI, LR>
 where
     K: Null + Clone + Copy,
     S: TreeStorage<K>,
-    L: FlexLayoutCombine,
+    L: FlexLayoutStyle,
     LI: Get<K, Target = L>,
     LR: LayoutR,
     I: IndexMut<K, Output = INode>,
@@ -139,7 +140,7 @@ where
         state: NodeState,
         padding_box_size: Size<f32>,
         parent_padding: SideGap<f32>,
-        flex: &ContainerStyle,
+        flex: &FlexContainerStyle,
     ) {
         let style = &self.style.get(id);
         out_any!(
@@ -229,7 +230,7 @@ where
             // log::trace,
             "abs_layout, id:{:?} size:{:?} walign: {:?}, halign: {:?} position:{:?}, margin: {:?}, flex_direction {:?}, w: {:?}, x: {:?}, h: {:?}, y: {:?}",
             id,
-            (style.width(), style.height()),
+            style.size(),
 			walign,
 			halign,
             style.position(),
@@ -247,10 +248,10 @@ where
             let border = style.border();
             let padding = style.padding();
 
-            let mut cache = CalcContext::new(
+            let mut cache = FlexCalcContext::new(
                 calc_gap_by_containing_block(&padding_box_size, &border).gap_size(),
                 calc_gap_by_containing_block(&padding_box_size, &padding),
-                style.container_style(),
+                style.flex_container_style(),
                 Size::new(
                     calc_length(w, min_width, max_width),
                     calc_length(h, min_height, max_height),
@@ -313,6 +314,7 @@ where
                 Rect::new(x, y, w.or_else(0.0), h.or_else(0.0)),
                 &border,
                 &padding,
+                false,
             );
         } else {
             self.set_layout(
@@ -320,13 +322,14 @@ where
                 is_text,
                 child_head,
                 child_tail,
-                style.container_style(),
+                style.flex_container_style(),
                 style.direction(),
                 style.border(),
                 style.padding(),
                 state,
                 padding_box_size,
                 Rect::new(x, y, w.or_else(0.0), h.or_else(0.0)),
+                true,
             );
         };
     }
@@ -360,13 +363,14 @@ where
             is_text,
             child_head,
             child_tail,
-            style.container_style(),
+            style.flex_container_style(),
             style.direction(),
             style.border(),
             style.padding(),
             state,
             padding_box_size - parent_padding.gap_size(),
             rect,
+            false,
         );
     }
     /// 布局临时节点
@@ -404,7 +408,7 @@ where
             return;
         }
         let s = self.style.get(id);
-        let flex = s.container_style();
+        let flex = s.flex_container_style();
         let direction = s.direction();
         let border = s.border();
         let padding = s.padding();
@@ -417,7 +421,7 @@ where
         i_node
             .state
             .set_false(NodeState::ChildrenDirty | NodeState::SelfDirty);
-
+	// 以父节点的内边距作为0坐标， 所以需要加上父的padding
         let x = calc_pos(
             s.position_left(),
             s.position_right(),
@@ -444,6 +448,7 @@ where
                 Rect::new(x, y, width.1, height.1),
                 &border,
                 &padding,
+                false,
             );
             let padding_box_size = padding_box_size(&layout);
             let padding_gap: SideGap<f32> = *layout.padding();
@@ -476,6 +481,7 @@ where
                 content_box_size,
                 // is_abs,
                 Rect::new(x, y, width.1, height.1),
+                true,
             );
         } else {
             // 有Auto的节点在计算阶段已经将自己的子节点都布局了，节点自身等待确定位置
@@ -490,6 +496,7 @@ where
                 Rect::new(x, y, width.1, height.1),
                 &border,
                 &padding,
+                false,
             );
         }
     }
@@ -497,7 +504,7 @@ where
     // 自动布局，计算宽高， 如果is_fix为false则返回Temp。宽度或高度auto、宽度或高度undefined的节点会进入此方法
     fn auto_children_layout(
         &mut self,
-        cache: &mut CalcContext<K>,
+        cache: &mut FlexCalcContext<K>,
         is_fix: bool, // 自身节点是否为固定大小,
         id: K,
         is_text: bool,
@@ -551,7 +558,7 @@ where
     /// 分文字和非文字情况，非文字则先统计行信息。is_notify为true时，则进行计算最终布局大小
     fn do_layout(
         &mut self,
-        cache: &mut CalcContext<K>,
+        cache: &mut FlexCalcContext<K>,
         is_notify: bool,
         id: K,
         is_text: bool,
@@ -560,7 +567,7 @@ where
         children_index: bool,
         direction: Direction,
     ) {
-        let mut line = LineInfo::default();
+        let mut line = MultiLineInfo::default();
         out_any!(
             log::debug,
             // log::trace,
@@ -661,9 +668,9 @@ where
     // 子节点布局，如果is_notify，并且子节点是绝对定位，则直接布局。 否则统计行信息
     fn children_layout(
         &mut self,
-        cache: &mut CalcContext<K>,
+        cache: &mut FlexCalcContext<K>,
         is_notify: bool,
-        line: &mut LineInfo,
+        line: &mut MultiLineInfo,
         mut child: K,
         children_index: bool,
         direction: Direction,
@@ -858,10 +865,10 @@ where
                 let (w, h) = cache.temp.main_cross(main, cross);
                 let children_index = i_node.state.contains(NodeState::ChildrenIndex);
                 let is_text = i_node.text.len() > 0;
-                let mut cache_new = CalcContext::new(
+                let mut cache_new = FlexCalcContext::new(
                     calc_gap_by_containing_block(&content_box_size, &border).gap_size(),
                     calc_gap_by_containing_block(&content_box_size, &padding),
-                    style.container_style(),
+                    style.flex_container_style(),
                     Size::new(
                         calc_length(w, min_width, max_width),
                         calc_length(h, min_height, max_height),
@@ -947,21 +954,21 @@ where
         }
     }
 
-    // 设置节点的布局数据，如果内容宽高有改变，则调用自身的子节点布局方法
+    // 设置节点的布局数据，如果is_changed并且内容宽高有改变，则调用自身的子节点布局方法
     fn set_layout(
         &mut self,
         id: K,
         is_text: bool,
         child_head: K,
         child_tail: K,
-        flex: ContainerStyle,
+        flex: FlexContainerStyle,
         direction: Direction,
         border: SideGap<Dimension>,
         padding: SideGap<Dimension>,
         state: NodeState,
         containing_block_size: Size<f32>,
-        // parent_padding: SideGap<f32>,
         rect: Rect<f32>,
+        is_changed: bool,
     ) {
         out_any!(
             log::debug,
@@ -976,11 +983,11 @@ where
         );
         // 设置布局的值
         let mut layout = self.layout_map.get_mut(id);
-        let r = if state.contains(NodeState::SelfDirty)
-            || !eq_f32(layout.rect().left, rect.left)
-            || !eq_f32(layout.rect().right, rect.right)
-            || !eq_f32(layout.rect().top, rect.top)
-            || !eq_f32(layout.rect().bottom, rect.bottom)
+        let r = if is_changed || state.contains(NodeState::SelfDirty)
+            // || !eq_f32(layout.rect().left, rect.left)
+            // || !eq_f32(layout.rect().right, rect.right)
+            // || !eq_f32(layout.rect().top, rect.top)
+            // || !eq_f32(layout.rect().bottom, rect.bottom)
         {
             set_layout_result(
                 &mut layout,
@@ -991,6 +998,7 @@ where
                 rect,
                 &border,
                 &padding,
+                true,
             )
         } else {
             false
@@ -1015,7 +1023,7 @@ where
         }
         let size = rect.size();
         // 宽高变动重新布局
-        let mut cache = CalcContext::new(
+        let mut cache = FlexCalcContext::new(
             layout.border().gap_size(),
             *layout.padding(),
             flex,
@@ -1044,7 +1052,7 @@ where
         padding_gap: SideGap<f32>,
         main: f32,
         cross: f32,
-        line: &LineInfo,
+        line: &MultiLineInfo,
     ) {
         out_any!(
             log::debug,
@@ -1393,5 +1401,73 @@ where
             split,
             if normal { main_calc } else { main_calc_reverse },
         );
+    }
+}
+
+
+/// https://developer.mozilla.org/zh-CN/docs/Web/CSS/Containing_block
+/// 获得节点对应的包含块containing block，绝对定位节点由父内边距区（padding box）的边缘组成， 相对定位节点由父内容区（content box）的边缘组成
+pub fn padding_box_size<T: LayoutR>(l: &T) -> Size<f32> {
+    Size::new(
+        l.rect().right - l.border().right - l.rect().left - l.border().left,
+        l.rect().bottom - l.border().bottom - l.rect().top - l.border().top,
+    )
+}
+
+// 设置布局结果，返回是否变动两种内容区大小
+pub fn set_layout_result<T, K, L: LayoutR>(
+    layout: &mut L,
+    notify: fn(&mut T, K, &L),
+    notify_arg: &mut T,
+    id: K,
+    containing_block_size: Size<f32>,
+    rect: Rect<f32>,
+    border: &SideGap<Dimension>,
+    padding: &SideGap<Dimension>,
+    is_check: bool,
+) -> bool {
+    unsafe {
+        PC += 1;
+        PP = 0
+    };
+    let old_size = layout.rect().size();
+    let old_padding_box_size = old_size - layout.border().gap_size();
+    let old_content_box_size = old_padding_box_size - layout.padding().gap_size();
+    layout.set_rect(rect);
+    layout.set_border(calc_gap_by_containing_block(&containing_block_size, border));
+    layout.set_padding(calc_gap_by_containing_block(
+        &containing_block_size,
+        padding,
+    ));
+    notify(notify_arg, id, layout);
+    layout.set_finish();
+    if !is_check {
+        return true
+    }
+    let size = layout.rect().size();
+    let padding_box_size = size - layout.border().gap_size();
+    if !(eq_f32(padding_box_size.width, old_padding_box_size.width)
+        && eq_f32(padding_box_size.height, old_padding_box_size.height))
+    {
+        return true;
+    }
+    let content_box_size = padding_box_size - layout.padding().gap_size();
+    !(eq_f32(content_box_size.width, old_content_box_size.width)
+        && eq_f32(content_box_size.height, old_content_box_size.height))
+}
+
+pub const EPSILON: f32 = std::f32::EPSILON * 1024.0;
+#[inline]
+pub fn eq_f32(v1: f32, v2: f32) -> bool {
+    v1 == v2 || ((v2 - v1).abs() <= EPSILON)
+}
+
+// 节点的兄弟节点
+pub fn node_iter<K: Null + Copy + Clone>(direction: Direction, next: K, prev: K) -> K {
+    if direction != Direction::RTL {
+        next
+    } else {
+        // 处理倒排的情况
+        prev
     }
 }

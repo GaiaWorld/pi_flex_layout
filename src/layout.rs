@@ -48,7 +48,7 @@ impl<'a, K, S, T, L, I, R, LI, LR> Layout<'a, K, S, T, L, I, R, LI, LR>
 where
     K: Null + Clone + Copy + Eq + PartialEq,
     S: TreeStorage<K>,
-    L: FlexLayoutCombine,
+    L: FlexLayoutStyle,
     LI: Get<K, Target = L>,
     LR: LayoutR,
     I: IndexMut<K, Output = INode>,
@@ -130,7 +130,7 @@ where
             }
             if parent.is_null() {
                 // 如果父容器为空
-                let flex = ContainerStyle {
+                let flex = FlexContainerStyle {
                     justify_content: JustifyContent::FlexStart,
                     align_content: AlignContent::FlexStart,
                     flex_direction: FlexDirection::Row,
@@ -160,7 +160,7 @@ where
                     state,
                     Size::default(),
                     SideGap::default(),
-                    &style.container_style(),
+                    &style.flex_container_style(),
                 );
             } else if state.contains(NodeState::Abs) {
                 // 如果节点是绝对定位， 则重新计算自身的布局数据
@@ -172,9 +172,9 @@ where
                     child_head,
                     child_tail,
                     state,
-                    padding_box_size(&layout),
+                    padding_box_size(&layout), 
                     *layout.padding(),
-                    &style.container_style(),
+                    &style.flex_container_style(),
                 );
             } else {
                 // 如果节点是相对定位，被设脏表示其修改的数据不会影响父节点的布局 则先重新计算自身的布局数据，然后修改子节点的布局数据

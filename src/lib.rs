@@ -20,6 +20,7 @@ mod node_state;
 mod number;
 pub mod style;
 mod traits;
+mod grow_shrink;
 
 pub mod prelude {
     pub use crate::calc::{CharNode, INode};
