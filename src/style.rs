@@ -45,8 +45,8 @@ pub enum Direction {
 pub enum Display {
     #[default]
     Flex,
-    Grid,
     None,
+    Grid,
 }
 
 #[derive(Copy, Default, Clone, PartialEq, PartialOrd, Debug, Serialize, Deserialize)]
