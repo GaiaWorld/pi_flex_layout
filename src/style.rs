@@ -63,7 +63,7 @@ impl FlexDirection {
         self == FlexDirection::Row || self == FlexDirection::RowReverse
     }
 
-    pub(crate) fn is_reverse(self) -> bool {
+    pub fn is_reverse(self) -> bool {
         self == FlexDirection::RowReverse || self == FlexDirection::ColumnReverse
     }
 }
@@ -98,8 +98,8 @@ pub enum PositionType {
 #[derive(Copy, Default, Clone, PartialEq, PartialOrd, Debug, Serialize, Deserialize)]
 pub enum FlexWrap {
     #[default]
-    NoWrap,
     Wrap,
+    NoWrap,
     WrapReverse,
 }
 

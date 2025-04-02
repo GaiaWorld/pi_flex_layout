@@ -210,8 +210,12 @@ impl<K> FlexCalcContext<K> {
             border_gap_size,
             padding_gap,
             min_size: Size::new(
-                gap_size.width.max(min_size.width.or_else(0.0)),
-                gap_size.height.max(min_size.height.or_else(0.0)),
+                gap_size
+                    .width
+                    .max(min_size.width.or_else(size.width.or_else(0.0))),
+                gap_size
+                    .height
+                    .max(min_size.height.or_else(size.height).or_else(0.0)),
             ),
             main,
             cross,
@@ -294,7 +298,7 @@ impl<K: Null + Clone> FlexCalcContext<K> {
                 cross: cross_d,
                 margin_main: 0.0,
                 margin_main_start: Number::Defined(spacing),
-                margin_main_end: Number::default(),
+                margin_main_end: Number::Defined(0.0),
                 margin_cross_start: Number::default(),
                 margin_cross_end: Number::default(),
                 align_self: AlignSelf::Auto,

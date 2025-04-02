@@ -1,17 +1,21 @@
-use std::fs;
+#![feature(async_await, futures_api)] // 早期异步语法需要 feature 标志
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::{fs, thread};
 
 use failure::*;
-use fantoccini::{Client, Locator};
+use fantoccini::{Client, ClientBuilder, Locator};
+use futures::executor::spawn;
 use futures::{future::Future, stream::Stream, sync::oneshot::channel};
 use json;
 use log::*;
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
 use syn::Ident;
+// use tokio::run;
 
-fn main() {
+#[tokio::main]
+async fn main() {
     env_logger::init();
     // this requires being run by cargo, which is iffy
     let root_dir = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
@@ -59,27 +63,28 @@ fn main() {
     let (test_descs_sink, mut test_descs) = channel();
 
     println!("spawning webdriver client and collecting test descriptions");
-    tokio::run(
-        Client::with_capabilities(webdriver_url, caps.clone())
-            .map_err(|e| Error::from(e))
-            .and_then(move |client| {
-                println!("tokio=============");
-                futures::stream::iter_ok(pb.wrap_iter(fixtures.into_iter()))
-                    .and_then(move |(name, fixture_path)| {
-                        pb.set_message(&name);
-                        test_root_element(client.clone(), name, fixture_path)
-                    })
-                    .collect()
-                    .map(move |descs| {
-                        println!("finished collecting descriptions, sending them back to main");
-                        let _ = test_descs_sink.send(descs);
-                    })
-            })
-            .map_err(|e| {
-                error!("top-level error encountered: {:?}", e);
-            }),
-    );
+    let f = async {
+        println!("================1");
+        let c = ClientBuilder::native()
+            .capabilities(caps)
+            .connect(webdriver_url)
+            .await
+            .expect("failed to connect to WebDriver");
 
+        let mut descs = Vec::new();
+        for (name, fixture_path) in pb.wrap_iter(fixtures.into_iter()) {
+            pb.set_message(&name);
+            test_root_element2(c.clone(), name, fixture_path)
+                .await
+                .map(|op| descs.push(op))
+                .unwrap();
+        }
+
+        let _ = c.close().await;
+        test_descs_sink.send(descs)
+    };
+
+    let _ = f.await;
     println!("killing webdriver instance...");
     webdriver_handle.kill().unwrap();
 
@@ -104,7 +109,7 @@ fn main() {
         .iter()
         .map(|(name, description)| {
             println!("generating test contents for {}", &name);
-            (name.clone(), generate_test(name, description))
+            (name.clone(), generate_test(name, description.clone()))
         })
         .collect();
 
@@ -183,35 +188,38 @@ fn main() {
     }
 }
 
-fn test_root_element(
+async fn test_root_element2(
     client: Client,
     name: String,
+
     fixture_path: impl AsRef<Path>,
-) -> impl Future<Item = (String, json::JsonValue), Error = Error> {
+) -> Result<(String, json::JsonValue), String> {
     let fixture_path = fixture_path.as_ref();
 
     let url = format!("file://{}", fixture_path.display());
     let nav_client = client.clone();
-    let mut locate_client = client.clone();
+    let locate_client = client.clone();
     println!("navigating to {:?}", &url);
     nav_client
         .goto(&url)
-        .map_err(|e| e.context("navigating to file"))
-        .and_then(move |_| {
-            locate_client
-                .find(Locator::Css("#test-root"))
-                .map_err(|e| e.context("finding #test-root"))
-                .and_then(|mut root| {
-                    root.prop("__stretch_description__")
-                        .map_err(|e| e.context("retrieving layout description from test root"))
-                        .and_then(|description_string| {
-                            json::parse(&description_string.unwrap())
-                                .map(|d| (name, d))
-                                .context("parsing test description")
-                        })
-                })
-        })
-        .map_err(|c| c.into())
+        .await
+        .map_err(|e| e.context("navigating to file").to_string())?;
+    let root = locate_client
+        .find(Locator::Css("#test-root"))
+        .await
+        .map_err(|e| e.context("finding #test-root").to_string())?;
+
+    let r = root
+        .prop("__stretch_description__")
+        .await
+        .map_err(|e| e.context("retrieving layout description from test root"))
+        .and_then(|description_string| {
+            println!("======== description_string: {:?}", description_string);
+            json::parse(&description_string.unwrap())
+                .map(|d| (name, d))
+                .context("parsing test description")
+        });
+    r.map_err(|op| op.to_string())
 }
 
 fn generate_bench(description: &json::JsonValue) -> TokenStream {
@@ -250,11 +258,17 @@ fn generate_bench(description: &json::JsonValue) -> TokenStream {
     )
 }
 
-fn generate_test(name: impl AsRef<str>, description: &json::JsonValue) -> TokenStream {
+fn generate_test(name: impl AsRef<str>, mut description: json::JsonValue) -> TokenStream {
     let name = name.as_ref();
     let name = Ident::new(name, Span::call_site());
     let node_description = generate_node(1, &mut 2, "node", &description);
     let assertions = generate_assertions(&mut 2, "node", &description);
+    println!(
+        "================ description: {:?}",
+        description.take_string()
+    );
+    // let r = description["text"].as_str().unwrap();
+
     let index1 = Ident::new(&format!("node_{}", 1), Span::call_site());
 
     quote!(
