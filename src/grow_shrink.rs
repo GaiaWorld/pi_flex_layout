@@ -7,16 +7,16 @@
 
 use crate::calc::RelNodeInfo;
 
-#[derive(Debug, Default, Clone, Copy, PartialEq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, PartialOrd)]
 pub struct Data {
-    grow: f32,
-    shrink: f32,
-    min: Option<f32>,
-    max: Option<f32>,
-    basis: Option<f32>,
-    length: f32,
-    result: f32,
-    result_maybe_ok: bool,
+    pub(crate) grow: f32,
+    pub(crate) shrink: f32,
+    pub(crate) min: Option<f32>,
+    pub(crate) max: Option<f32>,
+    pub(crate) basis: Option<f32>,
+    pub(crate) length: f32,
+    pub(crate) result: f32,
+    pub(crate) result_maybe_ok: bool,
 }
 impl Data {
     pub fn get_real_basis(&self) -> f32 {
@@ -126,7 +126,8 @@ impl LineContext {
             // }
         }
     }
-    pub fn statistics<K>(&mut self, el: Data) {
+    pub fn statistics(&mut self, el: Data) {
+        self.count += 1;
         let basis = el.get_real_basis();
         self.basis += basis;
         if el.grow > 0.0 {
@@ -261,7 +262,7 @@ impl LineContext {
             let r = if el.grow > 0.0 {
                 // 该节点需要扩展， 计算 grow的值
                 let b = el.get_real_basis();
-                b - el.grow * self.weight_basis / self.weight
+                b + el.grow * self.weight_basis / self.weight
             } else {
                 // 该节点不需要扩展，则取basis值
                 el.get_real_basis()

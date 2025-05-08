@@ -314,7 +314,7 @@ impl<K: Null + Clone> FlexCalcContext<K> {
             let start = info.margin_main_start.or_else(0.0);
             let end = info.margin_main_end.or_else(0.0);
             // 主轴auto时记录子节点实际大
-            let line_start = if line.item.count == 0 {
+            let line_start = if line.item.grow_shrink_context.count == 0 {
                 // 处理行首
                 0.0
             } else {
@@ -566,27 +566,29 @@ pub struct MultiLineInfo {
 /// 行信息中每行条目
 #[derive(Default, Clone, PartialEq, PartialOrd, Debug)]
 pub struct LineItem {
-    pub count: usize,       // 行内节点总数量
-    pub grow: f32,          // 行内节点grow的总值
-    pub shrink: f32,        // 行内节点shrink的总值
-    pub margin_auto: usize, // 行内节点主轴方向 margin=auto 的数量
-    pub main: f32,          // 行内节点主轴尺寸的总值（包括size margin）
-    pub cross: f32,         // 行内节点交叉轴尺寸的最大值
-    grow_shrink_context: LineContext, // 行内节点grow shrink的上下文
+    // pub count: usize,                     // 行内节点总数量
+    // pub grow: f32,                        // 行内节点grow的总值
+    // pub shrink: f32,                      // 行内节点shrink的总值
+    // pub margin_auto: usize,               // 行内节点主轴方向 margin=auto 的数量
+    // pub main: f32,                        // 行内节点主轴尺寸的总值（包括size margin）
+    pub cross: f32,                       // 行内节点交叉轴尺寸的最大值
+    pub grow_shrink_context: LineContext, // 行内节点grow shrink的上下文
+    pub datas: Vec<Data>,                 // 已计算的行
 }
 
 impl LineItem {
     // 将节点信息统计到行条目上
     fn merge<K>(&mut self, info: &RelNodeInfo<K>, line_start: bool) {
-        self.count += 1;
-        self.grow += info.grow;
-        self.shrink += info.shrink;
-        self.main += info.main;
+        // self.count += 1;
+        // self.grow += info.grow;
+        // self.shrink += info.shrink;
+        // self.main += info.main;
         let mut cross = info.cross;
         if let Number::Defined(r) = info.margin_main_end {
-            self.main += r;
+            self.grow_shrink_context.basis += r;
+            self.grow_shrink_context.no_grow_basis += r;
         } else {
-            self.margin_auto += 1;
+            self.grow_shrink_context.margin_auto += 1;
         }
 
         if let Number::Defined(r) = info.margin_cross_start {
@@ -604,10 +606,27 @@ impl LineItem {
             return;
         }
         if let Number::Defined(r) = info.margin_main_start {
-            self.main += r;
+            self.grow_shrink_context.basis += r;
+            self.grow_shrink_context.no_grow_basis += r;
         } else {
-            self.margin_auto += 1;
+            self.grow_shrink_context.margin_auto += 1;
         }
+        let el = Data {
+            basis: Some(info.main),
+            grow: info.grow,
+            shrink: info.shrink,
+            min: match info.min_main {
+                Number::Defined(v) => Some(v),
+                Number::Undefined => None,
+            },
+            max: match info.max_main {
+                Number::Defined(v) => Some(v),
+                Number::Undefined => None,
+            },
+            ..Default::default()
+        };
+        self.grow_shrink_context.statistics(el);
+        self.datas.push(el);
     }
 }
 
@@ -622,7 +641,8 @@ impl MultiLineInfo {
             &self.item
         );
         // 浮点误差判断是否折行
-        if (self.item.count > 0 && self.item.main + info.main + info.margin_main - main > EPSILON)
+        if (self.item.grow_shrink_context.count > 0
+            && self.item.grow_shrink_context.basis + info.main + info.margin_main - main > EPSILON)
             || info.breakline
         {
             self.cross += self.item.cross;
@@ -637,14 +657,15 @@ impl MultiLineInfo {
             self.items.push(t);
             self.item.merge(info, true);
         } else {
-            self.item.merge(info, self.item.count == 0);
+            self.item
+                .merge(info, self.item.grow_shrink_context.count == 0);
         }
     }
 }
 
-
-pub fn grow_calc<K>(info: &RelNodeInfo<K>, per: f32, pos: &mut f32) -> (f32, f32) {
+pub fn grow_calc<K>(info: &RelNodeInfo<K>, per: f32, pos: &mut f32, data: &Data) -> (f32, f32) {
     let size = info.main + info.grow * per;
+    let size = data.result;
     // if let Number::Defined(r) = info.max_main {
     // 	size = size.min(r);
     // }
@@ -652,8 +673,9 @@ pub fn grow_calc<K>(info: &RelNodeInfo<K>, per: f32, pos: &mut f32) -> (f32, f32
     *pos = start + size + info.margin_main_end.or_else(0.0);
     (start, size)
 }
-pub fn grow_calc_reverse<K>(info: &RelNodeInfo<K>, per: f32, pos: &mut f32) -> (f32, f32) {
+pub fn grow_calc_reverse<K>(info: &RelNodeInfo<K>, per: f32, pos: &mut f32, data: &Data) -> (f32, f32) {
     let size = info.main + info.grow * per;
+    let size = data.result;
     // if let Number::Defined(r) = info.max_main {
     // 	size = size.min(r);
     // }
@@ -661,18 +683,19 @@ pub fn grow_calc_reverse<K>(info: &RelNodeInfo<K>, per: f32, pos: &mut f32) -> (
     *pos = start - info.margin_main_start.or_else(0.0);
     (start, size)
 }
-pub fn margin_calc<K>(info: &RelNodeInfo<K>, per: f32, pos: &mut f32) -> (f32, f32) {
+pub fn margin_calc<K>(info: &RelNodeInfo<K>, per: f32, pos: &mut f32, data: &Data) -> (f32, f32) {
     let start = *pos + info.margin_main_start.or_else(per);
     *pos = start + info.main + info.margin_main_end.or_else(per);
     (start, info.main)
 }
-pub fn margin_calc_reverse<K>(info: &RelNodeInfo<K>, per: f32, pos: &mut f32) -> (f32, f32) {
+pub fn margin_calc_reverse<K>(info: &RelNodeInfo<K>, per: f32, pos: &mut f32, data: &Data) -> (f32, f32) {
     let start = *pos - info.margin_main_end.or_else(per) - info.main;
     *pos = start - info.margin_main_end.or_else(per);
     (start, info.main)
 }
-pub fn shrink_calc<K>(info: &RelNodeInfo<K>, per: f32, pos: &mut f32) -> (f32, f32) {
+pub fn shrink_calc<K>(info: &RelNodeInfo<K>, per: f32, pos: &mut f32, data: &Data) -> (f32, f32) {
     let size = info.main - info.shrink as f32 * per;
+    let size = data.result;
     // if let Number::Defined(r) = info.min_main {
     // 	size = size.max(r);
     // }
@@ -680,8 +703,9 @@ pub fn shrink_calc<K>(info: &RelNodeInfo<K>, per: f32, pos: &mut f32) -> (f32, f
     *pos = start + size + info.margin_main_end.or_else(0.0);
     (start, size)
 }
-pub fn shrink_calc_reverse<K>(info: &RelNodeInfo<K>, per: f32, pos: &mut f32) -> (f32, f32) {
+pub fn shrink_calc_reverse<K>(info: &RelNodeInfo<K>, per: f32, pos: &mut f32, data: &Data) -> (f32, f32) {
     let size = info.main - info.shrink as f32 * per;
+    let size = data.result;
     // if let Number::Defined(r) = info.min_main {
     // 	size = size.max(r);
     // }
@@ -708,12 +732,12 @@ pub fn max_calc(value: Number, max_value: Number) -> Number {
     }
 }
 
-pub fn main_calc<K>(info: &RelNodeInfo<K>, per: f32, pos: &mut f32) -> (f32, f32) {
+pub fn main_calc<K>(info: &RelNodeInfo<K>, per: f32, pos: &mut f32, data: &Data) -> (f32, f32) {
     let start = *pos + info.margin_main_start.or_else(0.0);
     *pos = start + info.main + info.margin_main_end.or_else(0.0) + per;
     (start, info.main)
 }
-pub fn main_calc_reverse<K>(info: &RelNodeInfo<K>, per: f32, pos: &mut f32) -> (f32, f32) {
+pub fn main_calc_reverse<K>(info: &RelNodeInfo<K>, per: f32, pos: &mut f32, data: &Data) -> (f32, f32) {
     let start = *pos - info.margin_main_end.or_else(0.0) - info.main;
     *pos = start - info.margin_main_start.or_else(0.0) - per;
     (start, info.main)

@@ -45,6 +45,7 @@ use pi_null::Null;
 
 use crate::calc::*;
 use crate::geometry::*;
+use crate::grow_shrink::Data;
 use crate::node_state::*;
 use crate::number::*;
 use crate::style::*;
@@ -96,14 +97,18 @@ where
         cross_end: f32,
         mut pos: f32,
         split: f32,
-        calc: fn(info: &RelNodeInfo<K>, per: f32, pos: &mut f32) -> (f32, f32),
+        calc: fn(info: &RelNodeInfo<K>, per: f32, pos: &mut f32, data: &Data) -> (f32, f32),
+        items: &[Data],
     ) {
         let mut baseline = Number::Undefined;
         if temp.row {
+            let mut index = 0;
             while *start < end {
                 let (info, temp_type) = unsafe { temp.rel_vec.get_unchecked_mut(*start) };
+                let item = &items[index];
+                index += 1;
                 *start += 1;
-                let main = calc(info, split, &mut pos);
+                let main = calc(info, split, &mut pos, item);
                 let cross = cross_calc(
                     info,
                     cross_start,
@@ -114,10 +119,13 @@ where
                 self.layout_temp_node(info.id, main, cross, temp_type, content_box_size, parent_padding);
             }
         } else {
+            let mut index = 0;
             while *start < end {
                 let (info, temp_type) = unsafe { temp.rel_vec.get_unchecked_mut(*start) };
+                let item = &items[index];
                 *start += 1;
-                let main = calc(info, split, &mut pos);
+                index += 1;
+                let main = calc(info, split, &mut pos, item);
                 let cross = cross_calc(
                     info,
                     cross_start,
@@ -454,7 +462,7 @@ where
             let padding_gap: SideGap<f32> = *layout.padding();
             let content_box_size = padding_box_size - layout.padding().gap_size();
             let mc = t.main_cross(content_box_size.width, content_box_size.height);
-            let line = t.reline(mc.0, mc.1);
+            let mut line = t.reline(mc.0, mc.1);
             // 如果有临时缓存子节点数组
             self.temp_line_layout(
                 t,
@@ -463,7 +471,7 @@ where
                 padding_gap,
                 mc.0,
                 mc.1,
-                &line,
+                &mut line,
             );
         } else if let TempNodeType::None = temp {
             // 确定大小的节点，需要进一步布局
@@ -653,7 +661,7 @@ where
                 cache.padding_gap,
                 cache.main_value,
                 cache.cross_value,
-                &line,
+                &mut line,
             );
 
             for v in cache.vnode.iter() {
@@ -923,12 +931,13 @@ where
             let start = info.margin_main_start.or_else(0.0);
             let end = info.margin_main_end.or_else(0.0);
             // 主轴auto时记录子节点实际大
-            let line_start = if line.item.count == 0 && info.line_start_margin_zero {
-                // 处理行首
-                0.0
-            } else {
-                start
-            };
+            let line_start =
+                if line.item.grow_shrink_context.count == 0 && info.line_start_margin_zero {
+                    // 处理行首
+                    0.0
+                } else {
+                    start
+                };
             info.margin_main = start + end;
             line.main += info.main + line_start + end;
 
@@ -1052,7 +1061,7 @@ where
         padding_gap: SideGap<f32>,
         main: f32,
         cross: f32,
-        line: &MultiLineInfo,
+        line: &mut MultiLineInfo,
     ) {
         out_any!(
             log::debug,
@@ -1062,7 +1071,7 @@ where
             &temp.flex,
             content_box_size,
             (main, cross),
-            line
+            &line
         );
         // 处理abs_vec
         for e in temp.abs_vec.iter() {
@@ -1076,7 +1085,7 @@ where
             self.temp_single_line(
                 temp,
                 main,
-                &line.item,
+                &mut line.item,
                 &mut start,
                 temp.rel_vec.len(),
                 content_box_size,
@@ -1149,14 +1158,15 @@ where
                         cross
                     };
                     let cross = cross / (line.items.len() + 1) as f32;
-                    for item in line.items.iter() {
+                    for item in line.items.iter_mut() {
                         let (cross_start, cross_end) = temp.multi_calc(cross, 0.0, &mut pos);
+                        let count = item.grow_shrink_context.count;
                         self.temp_single_line(
                             temp,
                             main,
-                            &item,
+                            item,
                             &mut start,
-                            item.count,
+                            count,
                             content_box_size,
                             &padding_gap,
                             cross_start,
@@ -1165,12 +1175,13 @@ where
                         );
                     }
                     let (cross_start, cross_end) = temp.multi_calc(cross, 0.0, &mut pos);
+                    let count = line.item.grow_shrink_context.count;
                     self.temp_single_line(
                         temp,
                         main,
-                        &line.item,
+                        &mut line.item,
                         &mut start,
-                        line.item.count,
+                        count,
                         content_box_size,
                         &padding_gap,
                         cross_start,
@@ -1181,22 +1192,23 @@ where
                 }
             }
         };
-        for item in line.items.iter() {
+        for item in line.items.iter_mut() {
             out_any!(
                 log::debug,
                 // log::trace,
                 "temp_line_layout1, item: {:?}, split: {:?}, pos: {:?}",
-                item,
+                &item,
                 split,
                 pos
             );
             let (cross_start, cross_end) = temp.multi_calc(item.cross, split, &mut pos);
+            let count = item.grow_shrink_context.count;
             self.temp_single_line(
                 temp,
                 main,
-                &item,
+                item,
                 &mut start,
-                item.count,
+                count,
                 content_box_size,
                 &padding_gap,
                 cross_start,
@@ -1214,12 +1226,13 @@ where
             line.cross
         );
         let (cross_start, cross_end) = temp.multi_calc(line.item.cross, split, &mut pos);
+        let count = line.item.grow_shrink_context.count;
         self.temp_single_line(
             temp,
             main,
-            &line.item,
+            &mut line.item,
             &mut start,
-            line.item.count,
+            count,
             content_box_size,
             &padding_gap,
             cross_start,
@@ -1233,7 +1246,7 @@ where
         &mut self,
         temp: &mut TempNode<K>,
         main: f32,
-        item: &LineItem,
+        item: &mut LineItem,
         start: &mut usize,
         count: usize,
         content_box_size: Size<f32>,
@@ -1254,7 +1267,7 @@ where
             content_box_size,
             (cross_start, cross_end),
             (*start, count),
-            (main, item.main)
+            (main, item.grow_shrink_context.basis)
         );
         let first = unsafe { temp.rel_vec.get_unchecked_mut(*start) };
         if first.0.line_start_margin_zero {
@@ -1263,13 +1276,18 @@ where
         }
         let end = *start + count;
         let pos = if normal { 0.0 } else { main };
+
+        item.grow_shrink_context.calculate(&mut item.datas, main);
+        let con = &item.grow_shrink_context;
+
         // 浮点误差计算
-        if main - item.main > EPSILON {
+        if main - con.basis > EPSILON {
             // 表示需要放大
-            if item.grow > 0.0 {
+            if con.grow_weight > 0.0 {
                 // if item.grow_shrink_context.grow_weight > 0.0 {
                 // grow 填充
-                let split = (main - item.main) / item.grow;
+
+                let split = (main - con.basis) / con.grow_weight;
                 self.item_calc(
                     temp,
                     start,
@@ -1281,11 +1299,12 @@ where
                     pos,
                     split,
                     if normal { grow_calc } else { grow_calc_reverse },
+                    &item.datas,
                 );
                 return;
-            } else if item.margin_auto > 0 {
+            } else if con.margin_auto > 0 {
                 // margin_auto 填充
-                let split = (main - item.main) / item.margin_auto as f32;
+                let split = (main - con.basis) / con.margin_auto as f32;
                 self.item_calc(
                     temp,
                     start,
@@ -1301,13 +1320,14 @@ where
                     } else {
                         margin_calc_reverse
                     },
+                    &item.datas,
                 );
                 return;
             }
-        } else if EPSILON < item.main - main {
-            if item.shrink > 0.0 {
+        } else if EPSILON < con.basis - main {
+            if con.shrink_weight > 0.0 {
                 // 表示需要收缩
-                let split = (item.main - main) / item.shrink;
+                let split = (con.basis - main) / con.shrink_weight;
                 self.item_calc(
                     temp,
                     start,
@@ -1323,6 +1343,7 @@ where
                     } else {
                         shrink_calc_reverse
                     },
+                    &item.datas,
                 );
                 return;
             }
@@ -1337,35 +1358,44 @@ where
             }
             JustifyContent::FlexEnd => {
                 if normal {
-                    (main - item.main, 0.0)
+                    (main - item.grow_shrink_context.basis, 0.0)
                 } else {
-                    (item.main, 0.0)
+                    (item.grow_shrink_context.basis, 0.0)
                 }
             }
             JustifyContent::Center => {
                 if normal {
-                    ((main - item.main) / 2.0, 0.0)
+                    ((main - item.grow_shrink_context.basis) / 2.0, 0.0)
                 } else {
-                    ((main + item.main) / 2.0, 0.0)
+                    ((main + item.grow_shrink_context.basis) / 2.0, 0.0)
                 }
             }
             JustifyContent::SpaceBetween => {
                 if normal {
-                    if item.count > 1 {
-                        (0.0, (main - item.main) / (item.count - 1) as f32)
+                    if item.grow_shrink_context.count > 1 {
+                        (
+                            0.0,
+                            (main - item.grow_shrink_context.basis)
+                                / (item.grow_shrink_context.count - 1) as f32,
+                        )
                     } else {
-                        ((main - item.main) / 2.0, 0.0)
+                        ((main - item.grow_shrink_context.basis) / 2.0, 0.0)
                     }
                 } else {
-                    if item.count > 1 {
-                        (main, (main - item.main) / (item.count - 1) as f32)
+                    if item.grow_shrink_context.count > 1 {
+                        (
+                            main,
+                            (main - item.grow_shrink_context.basis)
+                                / (item.grow_shrink_context.count - 1) as f32,
+                        )
                     } else {
-                        ((main - item.main) / 2.0, 0.0)
+                        ((main - item.grow_shrink_context.basis) / 2.0, 0.0)
                     }
                 }
             }
             JustifyContent::SpaceAround => {
-                let s = (main - item.main) / item.count as f32;
+                let s =
+                    (main - item.grow_shrink_context.basis) / item.grow_shrink_context.count as f32;
                 if normal {
                     (s / 2.0, s)
                 } else {
@@ -1373,7 +1403,8 @@ where
                 }
             }
             _ => {
-                let s = (main - item.main) / (item.count + 1) as f32;
+                let s = (main - item.grow_shrink_context.basis)
+                    / (item.grow_shrink_context.count + 1) as f32;
                 if normal {
                     (s, s)
                 } else {
@@ -1400,10 +1431,10 @@ where
             pos,
             split,
             if normal { main_calc } else { main_calc_reverse },
+            &item.datas,
         );
     }
 }
-
 
 /// https://developer.mozilla.org/zh-CN/docs/Web/CSS/Containing_block
 /// 获得节点对应的包含块containing block，绝对定位节点由父内边距区（padding box）的边缘组成， 相对定位节点由父内容区（content box）的边缘组成

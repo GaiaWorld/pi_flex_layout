@@ -97,8 +97,8 @@ pub enum PositionType {
 
 #[derive(Copy, Default, Clone, PartialEq, PartialOrd, Debug, Serialize, Deserialize)]
 pub enum FlexWrap {
-    #[default]
     Wrap,
+    #[default]
     NoWrap,
     WrapReverse,
 }
