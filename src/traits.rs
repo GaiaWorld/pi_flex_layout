@@ -98,9 +98,7 @@ pub trait BoxStyle {
             height: self.height(),
         }
     }
-
 }
-
 
 pub trait FlexLayoutStyle: BoxStyle {
     fn direction(&self) -> Direction;
@@ -110,8 +108,8 @@ pub trait FlexLayoutStyle: BoxStyle {
     fn justify_content(&self) -> JustifyContent;
     fn align_items(&self) -> AlignItems;
     fn align_content(&self) -> AlignContent;
-    fn row_gap(&self) -> f32;
-    fn column_gap(&self) -> f32;
+    fn row_gap(&self) -> Dimension;
+    fn column_gap(&self) -> Dimension;
 
     fn order(&self) -> isize;
     fn flex_basis(&self) -> Dimension;
@@ -130,7 +128,6 @@ pub trait FlexLayoutStyle: BoxStyle {
             column_gap: self.column_gap(),
         }
     }
-
 }
 
 pub trait Get<K> {

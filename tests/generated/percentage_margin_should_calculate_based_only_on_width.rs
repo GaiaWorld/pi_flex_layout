@@ -3,7 +3,7 @@ pub fn print<T: pi_flex_layout::prelude::LayoutR + std::fmt::Debug>(
     id: pi_slotmap_tree::TreeKey,
     layout: &T,
 ) {
-    log::debug!("result: {:?} {:?}", id, layout);
+    println!("result: {:?} {:?}", id, layout.rect());
 }
 #[test]
 fn percentage_margin_should_calculate_based_only_on_width() {

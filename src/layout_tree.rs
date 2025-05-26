@@ -27,8 +27,8 @@ pub struct Style {
     pub justify_content: JustifyContent,
     pub align_items: AlignItems,
     pub align_content: AlignContent,
-    pub row_gap: f32,
-    pub column_gap: f32,
+    pub row_gap: Dimension,
+    pub column_gap: Dimension,
 
     pub order: isize,
     pub flex_basis: Dimension,
@@ -197,10 +197,10 @@ impl FlexLayoutStyle for Style {
     fn align_content(&self) -> AlignContent {
         self.align_content
     }
-    fn row_gap(&self) -> f32 {
+    fn row_gap(&self) -> Dimension {
         self.row_gap
     }
-    fn column_gap(&self) -> f32 {
+    fn column_gap(&self) -> Dimension {
         self.column_gap
     }
 
@@ -223,7 +223,6 @@ impl FlexLayoutStyle for Style {
     fn align_self(&self) -> AlignSelf {
         self.align_self
     }
-
 }
 
 #[derive(Debug, Clone, Default)]

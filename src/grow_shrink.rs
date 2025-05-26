@@ -1,11 +1,11 @@
-
 //! 根据flex布局， 子节点如果有min或max约束了grow和shrink，则按有min或max约束的子节点的grow-shrink来先计算一趟缩放。然后再根据余出来的空间，再进行多轮迭代，继续将没有达到约束上限的节点计算缩放。直到所有约束都完毕，然后再在无约束的子节点的grow-shrink来计算一次缩放。
 //! 注意， 收缩和扩展不同，根据css规范组， shrink的权重是shrink * basis，可能是css规范组希望等比收缩，这样不会出现收缩成负值
 //! grow的值如果小于0，并且总的grow值也小于1，则表示每个grow仅扩展指定的百分比，最后会有剩余空间
 //! shrink的情况和grow类似，shrink的值如果小于0，并且总的shrink值也小于1，则表示每个shrink仅收缩shrink * basis权重对应的百分比，最后会有溢出空间
 
+// use crate::calc::RelNodeInfo;
 
-use crate::calc::RelNodeInfo;
+use crate::number::Number;
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, PartialOrd)]
 pub struct Data {
@@ -17,6 +17,15 @@ pub struct Data {
     pub(crate) length: f32,
     pub(crate) result: f32,
     pub(crate) result_maybe_ok: bool,
+    //
+    pub(crate) margin_cross_start: Number,
+    pub(crate) margin_cross_end: Number,
+    pub(crate) cross: f32,
+    pub(crate) aspect_ratio: Option<f32>,
+    pub(crate) gap_main_start: f32,
+    pub(crate) gap_main_end: f32,
+    pub(crate) gap_cross_start: f32,
+    pub(crate) gap_cross_end: f32,
 }
 impl Data {
     pub fn get_real_basis(&self) -> f32 {
@@ -51,7 +60,7 @@ impl Data {
                     context.only_grow_count += 1;
                 }
             }
-        }else{
+        } else {
             // 如果没有设置grow，则basis统计到context.no_grow_basis上
             context.no_grow_basis += basis;
         }
@@ -99,7 +108,7 @@ pub struct LineContext {
     /// 统计的总值
     pub(crate) basis: f32,
 
-     // 行内节点主轴方向 margin=auto 的数量
+    // 行内节点主轴方向 margin=auto 的数量
     pub margin_auto: usize,
 
     /// 当前容器的值
@@ -141,7 +150,7 @@ impl LineContext {
                     self.only_grow_count += 1;
                 }
             }
-        }else{
+        } else {
             // 如果没有设置grow，则basis统计到self.no_grow_basis上
             self.no_grow_basis += basis;
         }
@@ -413,15 +422,14 @@ impl LineContext {
 #[cfg(test)]
 mod test_mod {
     use crate::grow_shrink::*;
-    use rand::{Rng, SeedableRng};
     use pcg_rand::*;
+    use rand::{Rng, SeedableRng};
 
     // #[test]
     fn test_grow() {
         for i in 1..2000 {
-            
             let mut rng = Pcg32::seed_from_u64(i);
-            let mut array = vec![ Data::default(); 3];
+            let mut array = vec![Data::default(); 3];
             let arr = [0.0, 1.0, 2.0];
             for el in array.iter_mut() {
                 el.length = rng.gen_range(0..50) as f32;
@@ -444,23 +452,23 @@ mod test_mod {
             assert!(r <= 0.0001);
             if con.grow_weight == 0.0 {
                 assert_eq!(amount, con.no_grow_basis);
-            }else if con.no_grow_basis + con.grow_basis >= con.length {// 收缩
+            } else if con.no_grow_basis + con.grow_basis >= con.length {
+                // 收缩
                 assert_eq!(amount, con.no_grow_basis + con.grow_basis);
-            }else if con.no_grow_basis + con.max_grow_amount >= con.length {
+            } else if con.no_grow_basis + con.max_grow_amount >= con.length {
                 let r = (amount - con.length).abs();
-                    assert!(r <= 0.0001);
-            }else{// 扩展到最大值
+                assert!(r <= 0.0001);
+            } else {
+                // 扩展到最大值
                 assert_eq!(amount, con.no_grow_basis + con.max_grow_amount);
             }
         }
-
     }
     // #[test]
     fn test_shrink() {
         for i in 1..3000 {
-            
             let mut rng = Pcg32::seed_from_u64(i);
-            let mut array = vec![ Data::default(); 3];
+            let mut array = vec![Data::default(); 3];
             let arr = [0.0, 1.0, 2.0];
             for el in array.iter_mut() {
                 el.length = rng.gen_range(20..80) as f32;
@@ -483,23 +491,23 @@ mod test_mod {
             assert!(r <= 0.0001);
             if con.shrink_weight == 0.0 {
                 assert_eq!(amount, con.no_shrink_basis);
-            }else if con.no_shrink_basis + con.shrink_basis <= con.length {// 扩展
+            } else if con.no_shrink_basis + con.shrink_basis <= con.length {
+                // 扩展
                 assert_eq!(amount, con.no_shrink_basis + con.shrink_basis);
-            }else if con.no_shrink_basis + con.min_shrink_amount <= con.length {
+            } else if con.no_shrink_basis + con.min_shrink_amount <= con.length {
                 let r = (amount - con.length).abs();
-                    assert!(r <= 0.0001);
-            }else{// 收缩到最小值
+                assert!(r <= 0.0001);
+            } else {
+                // 收缩到最小值
                 assert_eq!(amount, con.no_shrink_basis + con.min_shrink_amount);
             }
         }
-
     }
     // #[test]
     fn test() {
         for i in 1..2000 {
-            
             let mut rng = Pcg32::seed_from_u64(i);
-            let mut array = vec![ Data::default(); 3];
+            let mut array = vec![Data::default(); 3];
             let arr = [0.0, 1.0, 2.0];
             for el in array.iter_mut() {
                 el.length = rng.gen_range(0..100) as f32;
@@ -522,10 +530,12 @@ mod test_mod {
             dbg!(amount);
             let r = (amount - con.amount).abs();
             assert!(r <= 0.0001);
-            if con.basis < con.length { // 扩展
+            if con.basis < con.length {
+                // 扩展
                 assert!(amount <= con.length + 0.01);
-            }else if con.basis > con.length { // 收缩
-                assert!(amount >=con.length - 0.01);
+            } else if con.basis > con.length {
+                // 收缩
+                assert!(amount >= con.length - 0.01);
             }
         }
     }

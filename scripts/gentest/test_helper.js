@@ -46,6 +46,15 @@ function parseNumber(input) {
   }
 }
 
+function parseRatio(input) {
+  if (input) {
+    let r = input.split("/");
+    return r[0] / r[1];
+  } else {
+    return undefined;
+  }
+}
+
 function parseEnum(input) {
   if (input) {
     return input;
@@ -111,6 +120,9 @@ function describeElement(e) {
       size: parseSize({width: e.style.width, height: e.style.height}),
       min_size: parseSize({width: e.style.minWidth, height: e.style.minHeight}),
       max_size: parseSize({width: e.style.maxWidth, height: e.style.maxHeight}),
+      aspect_ratio: parseRatio(e.style.aspectRatio) ,
+      row_gap: parseDimension(e.style.rowGap) ,
+      column_gap: parseDimension(e.style.columnGap) ,
 
       margin: parseEdges({
         left: e.style.marginLeft,

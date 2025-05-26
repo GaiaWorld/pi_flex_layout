@@ -1,6 +1,6 @@
 //! todo layout_context和layout, 是用来隔离计算和存储的， 以后将layout合并进layout_context中, 通过layout_tree来创建和调用layout_context，外部只操作layout_tree，layout及layout_context的接口也放进layout_tree中
 //! 将temp_line_layout temp_single_line 移动到calc中，calc改为flex_layout, 这样以后可以支持其他布局方式
-//! 
+//!
 // LayoutContext{
 
 //     abs_layout // 绝对布局，一般从此开始计算
@@ -106,6 +106,7 @@ where
             while *start < end {
                 let (info, temp_type) = unsafe { temp.rel_vec.get_unchecked_mut(*start) };
                 let item = &items[index];
+                info.cross = item.cross;
                 index += 1;
                 *start += 1;
                 let main = calc(info, split, &mut pos, item);
@@ -115,8 +116,16 @@ where
                     cross_end,
                     temp.flex.align_items,
                     &mut baseline,
+                    item,
                 );
-                self.layout_temp_node(info.id, main, cross, temp_type, content_box_size, parent_padding);
+                self.layout_temp_node(
+                    info.id,
+                    main,
+                    cross,
+                    temp_type,
+                    content_box_size,
+                    parent_padding,
+                );
             }
         } else {
             let mut index = 0;
@@ -132,8 +141,16 @@ where
                     cross_end,
                     temp.flex.align_items,
                     &mut baseline,
+                    item,
                 );
-                self.layout_temp_node(info.id, cross, main, temp_type, content_box_size, parent_padding);
+                self.layout_temp_node(
+                    info.id,
+                    cross,
+                    main,
+                    temp_type,
+                    content_box_size,
+                    parent_padding,
+                );
             }
         }
     }
@@ -277,6 +294,8 @@ where
                 child_tail,
                 state.contains(NodeState::ChildrenIndex),
                 direction,
+                flex.row_gap,
+                flex.column_gap,
             );
             out_any!(
                 log::debug,
@@ -429,7 +448,7 @@ where
         i_node
             .state
             .set_false(NodeState::ChildrenDirty | NodeState::SelfDirty);
-	// 以父节点的内边距作为0坐标， 所以需要加上父的padding
+        // 以父节点的内边距作为0坐标， 所以需要加上父的padding
         let x = calc_pos(
             s.position_left(),
             s.position_right(),
@@ -462,7 +481,7 @@ where
             let padding_gap: SideGap<f32> = *layout.padding();
             let content_box_size = padding_box_size - layout.padding().gap_size();
             let mc = t.main_cross(content_box_size.width, content_box_size.height);
-            let mut line = t.reline(mc.0, mc.1);
+            let line = t.reline(mc.0, mc.1);
             // 如果有临时缓存子节点数组
             self.temp_line_layout(
                 t,
@@ -471,7 +490,7 @@ where
                 padding_gap,
                 mc.0,
                 mc.1,
-                &mut line,
+                &line,
             );
         } else if let TempNodeType::None = temp {
             // 确定大小的节点，需要进一步布局
@@ -520,6 +539,8 @@ where
         child_tail: K,
         children_index: bool,
         direction: Direction,
+        row_gap: Dimension,
+        column_gap: Dimension,
     ) -> (Size<f32>, TempNodeType<K>) {
         out_any!(
             log::debug,
@@ -540,6 +561,8 @@ where
             child_tail,
             children_index,
             direction,
+            row_gap,
+            column_gap,
         );
         out_any!(
             log::debug,
@@ -574,8 +597,12 @@ where
         child_tail: K,
         children_index: bool,
         direction: Direction,
+        row_gap: Dimension,
+        column_gap: Dimension,
     ) {
         let mut line = MultiLineInfo::default();
+        line.row_gap = calc_number(row_gap, cache.cross.or_else(0.0)).or_else(0.0);
+        line.column_gap = calc_number(column_gap, cache.main_line).or_else(0.0);
         out_any!(
             log::debug,
             // log::trace,
@@ -611,7 +638,7 @@ where
                 direction,
             );
         }
-        line.cross += line.item.cross;
+        line.statistics(cache.main_value);
 
         out_any!(
             log::debug,
@@ -654,6 +681,7 @@ where
         if is_notify {
             let (w, h) = cache.temp.main_cross(cache.main_value, cache.cross_value);
             let size = Size::new(w, h);
+
             self.temp_line_layout(
                 &mut cache.temp,
                 size + cache.padding_gap.gap_size(),
@@ -661,7 +689,7 @@ where
                 cache.padding_gap,
                 cache.main_value,
                 cache.cross_value,
-                &mut line,
+                &line,
             );
 
             for v in cache.vnode.iter() {
@@ -684,7 +712,8 @@ where
         direction: Direction,
     ) {
         let padding_box_size = cache.min_size - cache.border_gap_size;
-        let content_box_size = cache.min_size - cache.border_gap_size - cache.padding_gap.gap_size();
+        let content_box_size =
+            cache.min_size - cache.border_gap_size - cache.padding_gap.gap_size();
         while !child.is_null() {
             let (next, prev) = self
                 .tree
@@ -804,6 +833,7 @@ where
 
             let (max_main, max_cross) = cache.temp.main_cross(max_width, max_height);
             let (min_main, min_cross) = cache.temp.main_cross(min_width, min_height);
+            let flex_style = style.flex_container_style();
             // margin_main margin_cross 应该用content_box_size.width算
             let ((margin_main_start, margin_main_end), (margin_cross_start, margin_cross_end)) =
                 cache.temp.main_cross(
@@ -816,6 +846,28 @@ where
                         calc_location_number(style.margin_bottom(), content_box_size.width),
                     ),
                 );
+            // println!(
+            //     "============= margin: {:?}",
+            //     (
+            //         main,
+            //         margin_main_start,
+            //         margin_main_end,
+            //         margin_cross_start,
+            //         margin_cross_end,
+            //         content_box_size,
+            //         line.row_gap,
+            //         line.column_gap,
+            //     )
+            // );
+            let mut aspect_ratio = None;
+            if let Number::Defined(v) = style.aspect_ratio() {
+                if (main.is_defined() && !cross.is_defined())
+                    || (!main.is_defined() && cross.is_defined())
+                {
+                    aspect_ratio = Some(v);
+                }
+            }
+
             let mut info = RelNodeInfo {
                 id,
                 grow: style.flex_grow(),
@@ -836,6 +888,9 @@ where
                 max_main,
                 main_result: 0.0,
                 main_result_maybe_ok: false,
+                aspect_ratio,
+                // row_gap: flex_style.row_gap,
+                // column_gap: flex_style.column_gap,
             };
             out_any!(
                 log::debug,
@@ -843,6 +898,7 @@ where
                 "children_layout3,info:{:?}, ",
                 &info
             );
+
             let temp = if main == Number::Undefined || cross == Number::Undefined {
                 // 需要计算子节点大小
                 let direction = style.direction();
@@ -876,7 +932,7 @@ where
                 let mut cache_new = FlexCalcContext::new(
                     calc_gap_by_containing_block(&content_box_size, &border).gap_size(),
                     calc_gap_by_containing_block(&content_box_size, &padding),
-                    style.flex_container_style(),
+                    flex_style,
                     Size::new(
                         calc_length(w, min_width, max_width),
                         calc_length(h, min_height, max_height),
@@ -885,7 +941,7 @@ where
                     Size::new(max_width, max_height),
                 );
                 out_any!(
-                    log::debug,
+                    println,
                     // log::trace,
                     "children_layout5 cache_new: {:?}",
                     (
@@ -909,6 +965,8 @@ where
                     child_tail,
                     children_index,
                     direction,
+                    flex_style.row_gap,
+                    flex_style.column_gap,
                 );
                 let mc = cache.temp.main_cross(size.width, size.height);
                 info.main = mc.0;
@@ -993,10 +1051,10 @@ where
         // 设置布局的值
         let mut layout = self.layout_map.get_mut(id);
         let r = if is_changed || state.contains(NodeState::SelfDirty)
-            // || !eq_f32(layout.rect().left, rect.left)
-            // || !eq_f32(layout.rect().right, rect.right)
-            // || !eq_f32(layout.rect().top, rect.top)
-            // || !eq_f32(layout.rect().bottom, rect.bottom)
+        // || !eq_f32(layout.rect().left, rect.left)
+        // || !eq_f32(layout.rect().right, rect.right)
+        // || !eq_f32(layout.rect().top, rect.top)
+        // || !eq_f32(layout.rect().bottom, rect.bottom)
         {
             set_layout_result(
                 &mut layout,
@@ -1049,6 +1107,8 @@ where
             child_tail,
             state.contains(NodeState::ChildrenIndex),
             direction,
+            flex.row_gap,
+            flex.column_gap,
         );
     }
 
@@ -1061,7 +1121,7 @@ where
         padding_gap: SideGap<f32>,
         main: f32,
         cross: f32,
-        line: &mut MultiLineInfo,
+        line: &MultiLineInfo,
     ) {
         out_any!(
             log::debug,
@@ -1075,7 +1135,16 @@ where
         );
         // 处理abs_vec
         for e in temp.abs_vec.iter() {
-            self.abs_layout(e.0, e.4, e.1, e.2, e.3, padding_box_size, padding_gap, &temp.flex);
+            self.abs_layout(
+                e.0,
+                e.4,
+                e.1,
+                e.2,
+                e.3,
+                padding_box_size,
+                padding_gap,
+                &temp.flex,
+            );
         }
         let normal = !temp.flex.flex_direction.is_reverse();
         let mut start = 0;
@@ -1085,7 +1154,7 @@ where
             self.temp_single_line(
                 temp,
                 main,
-                &mut line.item,
+                &line.item,
                 &mut start,
                 temp.rel_vec.len(),
                 content_box_size,
@@ -1157,9 +1226,13 @@ where
                     } else {
                         cross
                     };
-                    let cross = cross / (line.items.len() + 1) as f32;
-                    for item in line.items.iter_mut() {
-                        let (cross_start, cross_end) = temp.multi_calc(cross, 0.0, &mut pos);
+                    let mod_cross = (cross - line.cross) / (line.items.len() + 1) as f32;
+
+                    let full_cross = line.item.cross + mod_cross;
+
+                    for item in line.items.iter() {
+                        let (cross_start, cross_end) =
+                            temp.multi_calc(item.cross + mod_cross, 0.0, &mut pos);
                         let count = item.grow_shrink_context.count;
                         self.temp_single_line(
                             temp,
@@ -1174,12 +1247,14 @@ where
                             normal,
                         );
                     }
-                    let (cross_start, cross_end) = temp.multi_calc(cross, 0.0, &mut pos);
+
+                    let (cross_start, cross_end) = temp.multi_calc(full_cross, 0.0, &mut pos);
+
                     let count = line.item.grow_shrink_context.count;
                     self.temp_single_line(
                         temp,
                         main,
-                        &mut line.item,
+                        &line.item,
                         &mut start,
                         count,
                         content_box_size,
@@ -1192,7 +1267,7 @@ where
                 }
             }
         };
-        for item in line.items.iter_mut() {
+        for item in line.items.iter() {
             out_any!(
                 log::debug,
                 // log::trace,
@@ -1230,7 +1305,7 @@ where
         self.temp_single_line(
             temp,
             main,
-            &mut line.item,
+            &line.item,
             &mut start,
             count,
             content_box_size,
@@ -1246,7 +1321,7 @@ where
         &mut self,
         temp: &mut TempNode<K>,
         main: f32,
-        item: &mut LineItem,
+        item: &LineItem,
         start: &mut usize,
         count: usize,
         content_box_size: Size<f32>,
@@ -1277,7 +1352,6 @@ where
         let end = *start + count;
         let pos = if normal { 0.0 } else { main };
 
-        item.grow_shrink_context.calculate(&mut item.datas, main);
         let con = &item.grow_shrink_context;
 
         // 浮点误差计算
@@ -1473,7 +1547,7 @@ pub fn set_layout_result<T, K, L: LayoutR>(
     notify(notify_arg, id, layout);
     layout.set_finish();
     if !is_check {
-        return true
+        return true;
     }
     let size = layout.rect().size();
     let padding_box_size = size - layout.border().gap_size();

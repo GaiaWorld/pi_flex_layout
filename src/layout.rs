@@ -136,8 +136,8 @@ where
                     flex_direction: FlexDirection::Row,
                     flex_wrap: FlexWrap::NoWrap,
                     align_items: AlignItems::FlexStart,
-                    row_gap: 0.0,
-                    column_gap: 0.0,
+                    row_gap: Dimension::Undefined,
+                    column_gap: Dimension::Undefined,
                 };
                 self.0.abs_layout(
                     *id,
@@ -172,7 +172,7 @@ where
                     child_head,
                     child_tail,
                     state,
-                    padding_box_size(&layout), 
+                    padding_box_size(&layout),
                     *layout.padding(),
                     &style.flex_container_style(),
                 );

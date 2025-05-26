@@ -159,13 +159,13 @@ pub enum OverflowWrap {
     BreakWord,
 }
 
-#[derive(Default, Clone, PartialEq, PartialOrd, Debug)]
+#[derive(Default, Clone, PartialEq, PartialOrd, Debug, Copy)]
 pub struct FlexContainerStyle {
     pub flex_direction: FlexDirection,
     pub flex_wrap: FlexWrap,
     pub justify_content: JustifyContent,
     pub align_items: AlignItems,
     pub align_content: AlignContent,
-    pub row_gap: f32,
-    pub column_gap: f32,
+    pub row_gap: Dimension,
+    pub column_gap: Dimension,
 }

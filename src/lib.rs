@@ -13,6 +13,7 @@ extern crate serde;
 
 mod calc;
 mod geometry;
+mod grow_shrink;
 mod layout;
 mod layout_context;
 mod layout_tree;
@@ -20,7 +21,6 @@ mod node_state;
 mod number;
 pub mod style;
 mod traits;
-mod grow_shrink;
 
 pub mod prelude {
     pub use crate::calc::{CharNode, INode};

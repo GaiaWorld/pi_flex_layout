@@ -3,7 +3,7 @@ pub fn print<T: pi_flex_layout::prelude::LayoutR + std::fmt::Debug>(
     id: pi_slotmap_tree::TreeKey,
     layout: &T,
 ) {
-    log::debug!("result: {:?} {:?}", id, layout);
+    println!("result: {:?} {:?}", id, layout.rect());
 }
 #[test]
 fn flex_shrink_by_outer_margin_with_max_size() {

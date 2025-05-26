@@ -1,14 +1,12 @@
-#![feature(async_await, futures_api)] // 早期异步语法需要 feature 标志
+// #![feature(async_await, futures_api)] // 早期异步语法需要 feature 标志
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::{fs, thread};
 
 use failure::*;
 use fantoccini::{Client, ClientBuilder, Locator};
-use futures::executor::spawn;
-use futures::{future::Future, stream::Stream, sync::oneshot::channel};
+use futures::sync::oneshot::channel;
 use json;
-use log::*;
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
 use syn::Ident;
@@ -214,7 +212,7 @@ async fn test_root_element2(
         .await
         .map_err(|e| e.context("retrieving layout description from test root"))
         .and_then(|description_string| {
-            println!("======== description_string: {:?}", description_string);
+            // println!("======== description_string: {:?}", description_string);
             json::parse(&description_string.unwrap())
                 .map(|d| (name, d))
                 .context("parsing test description")
@@ -261,20 +259,18 @@ fn generate_bench(description: &json::JsonValue) -> TokenStream {
 fn generate_test(name: impl AsRef<str>, mut description: json::JsonValue) -> TokenStream {
     let name = name.as_ref();
     let name = Ident::new(name, Span::call_site());
+    // println!("================ description: {:?}", description);
     let node_description = generate_node(1, &mut 2, "node", &description);
     let assertions = generate_assertions(&mut 2, "node", &description);
-    println!(
-        "================ description: {:?}",
-        description.take_string()
-    );
     // let r = description["text"].as_str().unwrap();
 
     let index1 = Ident::new(&format!("node_{}", 1), Span::call_site());
 
     quote!(
         pub fn print<T: pi_flex_layout::prelude::LayoutR + std::fmt::Debug>(_arg: &mut (), id: pi_slotmap_tree::TreeKey, layout: &T) {
-            log::debug!("result: {:?} {:?}", id, layout);
+            println!("result: {:?} {:?}", id, layout.rect());
         }
+
         #[test]
         fn #name() {
             let _ = env_logger::Builder::from_env(env_logger::Env::default()).try_init();
@@ -515,6 +511,30 @@ fn generate_node(
         _ => quote!(),
     };
 
+    let aspect_ratio = match style["aspect_ratio"] {
+        json::JsonValue::Number(value) => {
+            let aspect_ratio: f32 = value.into();
+            quote!(aspect_ratio: pi_flex_layout::prelude::Number::Defined(#aspect_ratio),)
+        }
+        _ => quote!(),
+    };
+
+    let row_gap = match style["row_gap"] {
+        json::JsonValue::Object(ref value) => {
+            let row_gap = generate_dimension(value);
+            quote!(row_gap: #row_gap,)
+        }
+        _ => quote!(),
+    };
+
+    let column_gap = match style["column_gap"] {
+        json::JsonValue::Object(ref value) => {
+            let column_gap = generate_dimension(value);
+            quote!(column_gap: #column_gap,)
+        }
+        _ => quote!(),
+    };
+
     let size = match style["size"] {
         json::JsonValue::Object(ref value) => {
             let size = generate_size(value);
@@ -608,6 +628,9 @@ fn generate_node(
                 #padding
                 #position
                 #border
+                #aspect_ratio
+                #row_gap
+                #column_gap
                 ..Default::default()
             },
         );

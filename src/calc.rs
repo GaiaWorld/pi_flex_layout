@@ -310,6 +310,9 @@ impl<K: Null + Clone> FlexCalcContext<K> {
                 max_main: Number::Undefined,
                 main_result: 0.0,
                 main_result_maybe_ok: false,
+                aspect_ratio: None,
+                // row_gap: Dimension::Undefined,
+                // column_gap: Dimension::Undefined,
             };
             let start = info.margin_main_start.or_else(0.0);
             let end = info.margin_main_end.or_else(0.0);
@@ -426,13 +429,13 @@ impl<K> Eq for OrderSort<K> {}
 #[derive(Clone, PartialEq, PartialOrd, Debug)]
 pub struct TempNode<K> {
     pub flex: FlexContainerStyle,
-     // (id, children_head, children_tail, state, is_text) 绝对定位的子节点数组
+    // (id, children_head, children_tail, state, is_text) 绝对定位的子节点数组
     pub abs_vec: Vec<(K, K, K, NodeState, bool)>,
-     // 相对定位的子节点数组
+    // 相对定位的子节点数组
     pub rel_vec: Vec<(RelNodeInfo<K>, TempNodeType<K>)>,
     // 是否为行布局
     pub row: bool,
-     // 子节点是否有百分比宽高
+    // 子节点是否有百分比宽高
     pub children_percent: bool,
 }
 
@@ -487,6 +490,7 @@ impl<K> TempNode<K> {
                 line.add(main, &r.0);
             }
         }
+        line.statistics(main);
         unsafe { PP += 1 };
         out_any!(
             log::debug,
@@ -553,6 +557,7 @@ pub struct RelNodeInfo<K> {
     pub(crate) main_result: f32,
     // 主轴的计算结果是否有效
     pub(crate) main_result_maybe_ok: bool,
+    pub(crate) aspect_ratio: Option<f32>,
 }
 
 /// 计算时统计的多行信息
@@ -562,6 +567,8 @@ pub struct MultiLineInfo {
     pub cross: f32,           // 多行子节点交叉轴的像素的累计值
     pub item: LineItem,       // 当前计算的行margin_auto
     pub items: Vec<LineItem>, // 已计算的行
+    pub row_gap: f32,
+    pub column_gap: f32,
 }
 /// 行信息中每行条目
 #[derive(Default, Clone, PartialEq, PartialOrd, Debug)]
@@ -578,30 +585,32 @@ pub struct LineItem {
 
 impl LineItem {
     // 将节点信息统计到行条目上
-    fn merge<K>(&mut self, info: &RelNodeInfo<K>, line_start: bool) {
+    fn merge<K>(&mut self, info: &RelNodeInfo<K>, line_start: bool, column_gap: f32) {
         // self.count += 1;
         // self.grow += info.grow;
         // self.shrink += info.shrink;
         // self.main += info.main;
-        let mut cross = info.cross;
         if let Number::Defined(r) = info.margin_main_end {
             self.grow_shrink_context.basis += r;
             self.grow_shrink_context.no_grow_basis += r;
         } else {
             self.grow_shrink_context.margin_auto += 1;
         }
+        // println!(
+        //     "======== merge: {:?}",
+        //     (
+        //         info.margin_main_end,
+        //         info.margin_main_start,
+        //         info.margin_cross_start,
+        //         info.margin_cross_end,
+        //     )
+        // );
 
-        if let Number::Defined(r) = info.margin_cross_start {
-            cross += r;
+        if !line_start {
+            self.grow_shrink_context.basis += column_gap;
+            self.grow_shrink_context.no_grow_basis += column_gap;
         }
 
-        if let Number::Defined(r) = info.margin_cross_end {
-            cross += r;
-        }
-
-        if self.cross < cross {
-            self.cross = cross;
-        }
         if line_start && info.line_start_margin_zero {
             return;
         }
@@ -623,10 +632,73 @@ impl LineItem {
                 Number::Defined(v) => Some(v),
                 Number::Undefined => None,
             },
+            margin_cross_end: info.margin_cross_end,
+            margin_cross_start: info.margin_cross_start,
+            cross: info.cross,
+            aspect_ratio: info.aspect_ratio,
             ..Default::default()
         };
         self.grow_shrink_context.statistics(el);
         self.datas.push(el);
+    }
+
+    pub fn statistics(
+        &mut self,
+        main: f32,
+        column_gap: f32,
+        gap_cross_start: f32,
+        gap_cross_end: f32,
+    ) {
+        self.grow_shrink_context.calculate(&mut self.datas, main);
+        let len = self.datas.len();
+        let mut index = 0;
+        for el in self.datas.iter_mut() {
+            el.gap_cross_start = gap_cross_start;
+            el.gap_cross_end = gap_cross_end;
+
+            if len > 1 {
+                if index == 0 {
+                    // 第一列
+                    el.gap_main_end = column_gap * 0.5;
+                } else if index == len - 1 {
+                    // 最后一列
+                    el.gap_main_start = column_gap * 0.5;
+                } else {
+                    // 中间列
+                    el.gap_main_start = column_gap * 0.5;
+                    el.gap_main_end = column_gap * 0.5;
+                }
+            }
+            let mut cross = el.cross;
+            if let Some(c) = el.aspect_ratio {
+                cross = el.result / c;
+                el.cross = cross;
+            }
+
+            if let Number::Defined(r) = el.margin_cross_start {
+                cross += r;
+            }
+
+            if let Number::Defined(r) = el.margin_cross_end {
+                cross += r;
+            }
+            cross = cross + gap_cross_start + gap_cross_end;
+            // el.cross = cross + gap_cross_start + gap_cross_end;
+            // println!("============ el.cross: {},  el.aspect_ratio: {:?}, el.result: {}, el.margin_cross_start: {:?}, el.margin_cross_end: {:?}, cross: {:?}, self.cross: {}",
+            //     el.cross,
+            //     el.aspect_ratio,
+            //     el.result,
+            //     el.margin_cross_start,
+            //     el.margin_cross_end,
+            //     cross,
+            //     self.cross);
+            if self.cross < cross {
+                self.cross = cross;
+            }
+
+            index += 1;
+            println!("data: {:?}", (cross, el,));
+        }
     }
 }
 
@@ -645,7 +717,6 @@ impl MultiLineInfo {
             && self.item.grow_shrink_context.basis + info.main + info.margin_main - main > EPSILON)
             || info.breakline
         {
-            self.cross += self.item.cross;
             out_any!(
                 log::debug,
                 // log::trace,
@@ -655,11 +726,35 @@ impl MultiLineInfo {
             );
             let t = replace(&mut self.item, LineItem::default());
             self.items.push(t);
-            self.item.merge(info, true);
+            self.item.merge(info, true, self.column_gap);
         } else {
-            self.item
-                .merge(info, self.item.grow_shrink_context.count == 0);
+            self.item.merge(
+                info,
+                self.item.grow_shrink_context.count == 0,
+                self.column_gap,
+            );
         }
+    }
+
+    pub fn statistics(&mut self, main: f32) {
+        let len = self.items.len();
+        let mut index = 0;
+        for i in self.items.iter_mut() {
+            let mut gap_cross_start = self.row_gap * 0.5;
+            if len > 0 {
+                if index == 0 {
+                    // 第一行
+                    gap_cross_start = 0.0;
+                }
+            }
+            println!("======== gap_cross_start: {}", gap_cross_start);
+            i.statistics(main, self.column_gap, gap_cross_start, self.row_gap * 0.5);
+            self.cross += i.cross;
+            index += 1;
+        }
+        self.item
+            .statistics(main, self.column_gap, self.row_gap * 0.5, 0.0);
+        self.cross += self.item.cross;
     }
 }
 
@@ -669,28 +764,38 @@ pub fn grow_calc<K>(info: &RelNodeInfo<K>, per: f32, pos: &mut f32, data: &Data)
     // if let Number::Defined(r) = info.max_main {
     // 	size = size.min(r);
     // }
-    let start = *pos + info.margin_main_start.or_else(0.0);
-    *pos = start + size + info.margin_main_end.or_else(0.0);
+    let start = *pos + info.margin_main_start.or_else(0.0) + data.gap_main_start;
+    *pos = start + size + info.margin_main_end.or_else(0.0) + data.gap_main_end;
     (start, size)
 }
-pub fn grow_calc_reverse<K>(info: &RelNodeInfo<K>, per: f32, pos: &mut f32, data: &Data) -> (f32, f32) {
+pub fn grow_calc_reverse<K>(
+    info: &RelNodeInfo<K>,
+    per: f32,
+    pos: &mut f32,
+    data: &Data,
+) -> (f32, f32) {
     let size = info.main + info.grow * per;
     let size = data.result;
     // if let Number::Defined(r) = info.max_main {
     // 	size = size.min(r);
     // }
-    let start = *pos - info.margin_main_end.or_else(0.0) - size;
-    *pos = start - info.margin_main_start.or_else(0.0);
+    let start = *pos - info.margin_main_end.or_else(0.0) - size - data.gap_main_end;
+    *pos = start - info.margin_main_start.or_else(0.0) - data.gap_main_start;
     (start, size)
 }
 pub fn margin_calc<K>(info: &RelNodeInfo<K>, per: f32, pos: &mut f32, data: &Data) -> (f32, f32) {
-    let start = *pos + info.margin_main_start.or_else(per);
-    *pos = start + info.main + info.margin_main_end.or_else(per);
+    let start = *pos + info.margin_main_start.or_else(per) + data.gap_main_start;
+    *pos = start + info.main + info.margin_main_end.or_else(per) + data.gap_main_end;
     (start, info.main)
 }
-pub fn margin_calc_reverse<K>(info: &RelNodeInfo<K>, per: f32, pos: &mut f32, data: &Data) -> (f32, f32) {
-    let start = *pos - info.margin_main_end.or_else(per) - info.main;
-    *pos = start - info.margin_main_end.or_else(per);
+pub fn margin_calc_reverse<K>(
+    info: &RelNodeInfo<K>,
+    per: f32,
+    pos: &mut f32,
+    data: &Data,
+) -> (f32, f32) {
+    let start = *pos - info.margin_main_end.or_else(per) - info.main - data.gap_main_end;
+    *pos = start - info.margin_main_end.or_else(per) - data.gap_main_end;
     (start, info.main)
 }
 pub fn shrink_calc<K>(info: &RelNodeInfo<K>, per: f32, pos: &mut f32, data: &Data) -> (f32, f32) {
@@ -699,18 +804,23 @@ pub fn shrink_calc<K>(info: &RelNodeInfo<K>, per: f32, pos: &mut f32, data: &Dat
     // if let Number::Defined(r) = info.min_main {
     // 	size = size.max(r);
     // }
-    let start = *pos + info.margin_main_start.or_else(0.0);
-    *pos = start + size + info.margin_main_end.or_else(0.0);
+    let start = *pos + info.margin_main_start.or_else(0.0) + data.gap_main_start;
+    *pos = start + size + info.margin_main_end.or_else(0.0) + data.gap_main_end;
     (start, size)
 }
-pub fn shrink_calc_reverse<K>(info: &RelNodeInfo<K>, per: f32, pos: &mut f32, data: &Data) -> (f32, f32) {
+pub fn shrink_calc_reverse<K>(
+    info: &RelNodeInfo<K>,
+    per: f32,
+    pos: &mut f32,
+    data: &Data,
+) -> (f32, f32) {
     let size = info.main - info.shrink as f32 * per;
     let size = data.result;
     // if let Number::Defined(r) = info.min_main {
     // 	size = size.max(r);
     // }
-    let start = *pos - info.margin_main_end.or_else(0.0) - size;
-    *pos = start - info.margin_main_start.or_else(0.0);
+    let start = *pos - info.margin_main_end.or_else(0.0) - size - data.gap_main_end;
+    *pos = start - info.margin_main_start.or_else(0.0) - data.gap_main_start;
     (start, size)
 }
 
@@ -733,13 +843,18 @@ pub fn max_calc(value: Number, max_value: Number) -> Number {
 }
 
 pub fn main_calc<K>(info: &RelNodeInfo<K>, per: f32, pos: &mut f32, data: &Data) -> (f32, f32) {
-    let start = *pos + info.margin_main_start.or_else(0.0);
-    *pos = start + info.main + info.margin_main_end.or_else(0.0) + per;
+    let start = *pos + info.margin_main_start.or_else(0.0) + data.gap_main_start;
+    *pos = start + info.main + info.margin_main_end.or_else(0.0) + per + data.gap_main_end;
     (start, info.main)
 }
-pub fn main_calc_reverse<K>(info: &RelNodeInfo<K>, per: f32, pos: &mut f32, data: &Data) -> (f32, f32) {
-    let start = *pos - info.margin_main_end.or_else(0.0) - info.main;
-    *pos = start - info.margin_main_start.or_else(0.0) - per;
+pub fn main_calc_reverse<K>(
+    info: &RelNodeInfo<K>,
+    per: f32,
+    pos: &mut f32,
+    data: &Data,
+) -> (f32, f32) {
+    let start = *pos - info.margin_main_end.or_else(0.0) - info.main - data.gap_main_end;
+    *pos = start - info.margin_main_start.or_else(0.0) - per - data.gap_main_start;
     (start, info.main)
 }
 // 返回位置和大小
@@ -749,6 +864,7 @@ pub fn cross_calc<K>(
     end: f32,
     align_items: AlignItems,
     baseline: &mut Number,
+    data: &Data,
 ) -> (f32, f32) {
     out_any!(
         log::debug,
@@ -762,22 +878,25 @@ pub fn cross_calc<K>(
 
     match info.align_self {
         AlignSelf::Auto => match align_items {
-            AlignItems::FlexStart => align_start(start, end, info),
-            AlignItems::FlexEnd => align_end(start, end, info),
-            AlignItems::Center => align_center(start, end, info),
-            _ if info.cross_d.is_undefined() => align_stretch(start, end, info),
-            _ => align_baseline(start, end, info, baseline), // 不算完全支持baseline
+            AlignItems::FlexStart => align_start(start, end, info, data),
+            AlignItems::FlexEnd => align_end(start, end, info, data),
+            AlignItems::Center => align_center(start, end, info, data),
+            _ if info.cross_d.is_undefined() => align_stretch(start, end, info, data),
+            _ => align_baseline(start, end, info, baseline, data), // 不算完全支持baseline
         },
-        AlignSelf::FlexStart => align_start(start, end, info),
-        AlignSelf::FlexEnd => align_end(start, end, info),
-        AlignSelf::Center => align_center(start, end, info),
-        _ if info.cross_d.is_undefined() => align_stretch(start, end, info),
-        _ => align_baseline(start, end, info, baseline), // 不算完全支持baseline
+        AlignSelf::FlexStart => align_start(start, end, info, data),
+        AlignSelf::FlexEnd => align_end(start, end, info, data),
+        AlignSelf::Center => align_center(start, end, info, data),
+        _ if info.cross_d.is_undefined() => align_stretch(start, end, info, data),
+        _ => align_baseline(start, end, info, baseline, data), // 不算完全支持baseline
     }
 }
 // 返回位置和大小
-pub fn align_start<K>(start: f32, _end: f32, info: &RelNodeInfo<K>) -> (f32, f32) {
-    (start + info.margin_cross_start.or_else(0.0), info.cross)
+pub fn align_start<K>(start: f32, _end: f32, info: &RelNodeInfo<K>, data: &Data) -> (f32, f32) {
+    (
+        start + info.margin_cross_start.or_else(0.0) + data.gap_cross_start,
+        info.cross,
+    )
     // if let Number::Defined(r) = info.margin_cross_start {
     //     (start + r, info.cross)
     // } else if let Number::Defined(r) = info.margin_cross_end {
@@ -787,7 +906,7 @@ pub fn align_start<K>(start: f32, _end: f32, info: &RelNodeInfo<K>) -> (f32, f32
     // }
 }
 // 返回位置和大小
-fn align_end<K>(_start: f32, end: f32, info: &RelNodeInfo<K>) -> (f32, f32) {
+fn align_end<K>(_start: f32, end: f32, info: &RelNodeInfo<K>, data: &Data) -> (f32, f32) {
     (
         end - info.margin_cross_end.or_else(0.0) - info.cross,
         info.cross,
@@ -801,23 +920,28 @@ fn align_end<K>(_start: f32, end: f32, info: &RelNodeInfo<K>) -> (f32, f32) {
     // }
 }
 // 返回位置和大小
-fn align_center<K>(start: f32, end: f32, info: &RelNodeInfo<K>) -> (f32, f32) {
+fn align_center<K>(start: f32, end: f32, info: &RelNodeInfo<K>, data: &Data) -> (f32, f32) {
     if let (Number::Defined(r), Number::Defined(rr)) =
         (info.margin_cross_start, info.margin_cross_end)
     {
-        ((start + end - info.cross - r - rr) / 2.0 + r, info.cross)
+        (
+            (start + end - info.cross - r - data.gap_cross_start - rr - data.gap_cross_end) / 2.0
+                + r
+                + data.gap_cross_start,
+            info.cross,
+        )
     } else if let (Number::Defined(r), _) = (info.margin_cross_start, info.margin_cross_end) {
-        (start + r, info.cross)
+        (start + r + data.gap_cross_start, info.cross)
     } else if let (_, Number::Defined(rr)) = (info.margin_cross_start, info.margin_cross_end) {
-        (end - rr - info.cross, info.cross)
+        (end - rr - data.gap_cross_end - info.cross, info.cross)
     } else {
         ((start + end - info.cross) / 2.0, info.cross)
     }
 }
 // 返回位置和大小
-fn align_stretch<K>(start: f32, end: f32, info: &RelNodeInfo<K>) -> (f32, f32) {
-    let r = info.margin_cross_start.or_else(0.0);
-    let rr = info.margin_cross_end.or_else(0.0);
+fn align_stretch<K>(start: f32, end: f32, info: &RelNodeInfo<K>, data: &Data) -> (f32, f32) {
+    let r = info.margin_cross_start.or_else(0.0) + data.gap_cross_start;
+    let rr = info.margin_cross_end.or_else(0.0) + data.gap_cross_end;
     (start + r, end - r - rr)
 }
 // 返回位置和大小
@@ -826,11 +950,12 @@ fn align_baseline<K>(
     _end: f32,
     info: &RelNodeInfo<K>,
     baseline: &mut Number,
+    data: &Data,
 ) -> (f32, f32) {
     if let Number::Defined(b) = baseline {
         (*b - info.cross, info.cross)
     } else {
-        let r = info.margin_cross_start.or_else(0.0);
+        let r = info.margin_cross_start.or_else(0.0) + data.gap_cross_start;
         // 如果基线还未计算，则计算
         *baseline = Number::Defined(start + r + info.cross);
         (start + r, info.cross)
@@ -861,7 +986,7 @@ pub fn calc_rect(
         } else {
             return (
                 Number::Undefined,
-                0.0 // 这个时候的位置没有意义，需要大小明确后再次计算
+                0.0, // 这个时候的位置没有意义，需要大小明确后再次计算
             );
         };
         let mut end_r = if let Dimension::Points(rrr) = end {
@@ -906,15 +1031,18 @@ pub fn calc_rect(
                 // 后对齐
                 return (
                     Number::Defined(calc_size),
-                    parent - margin_end.resolve_value(containing_block_width) - padding_end - calc_size,
+                    parent
+                        - margin_end.resolve_value(containing_block_width)
+                        - padding_end
+                        - calc_size,
                 );
             } else {
                 if start == Dimension::Undefined {
                     // 解决当绝对定位时，没有定义start和end时， 前对齐时默认的位置为padding
                     return (
                         Number::Defined(calc_size),
-                        margin_start.resolve_value(containing_block_width) + padding_start
-                    )
+                        margin_start.resolve_value(containing_block_width) + padding_start,
+                    );
                 }
                 // 前对齐
                 return (
