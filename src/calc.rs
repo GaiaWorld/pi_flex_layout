@@ -611,15 +611,6 @@ impl LineItem {
             self.grow_shrink_context.no_grow_basis += column_gap;
         }
 
-        if line_start && info.line_start_margin_zero {
-            return;
-        }
-        if let Number::Defined(r) = info.margin_main_start {
-            self.grow_shrink_context.basis += r;
-            self.grow_shrink_context.no_grow_basis += r;
-        } else {
-            self.grow_shrink_context.margin_auto += 1;
-        }
         let el = Data {
             basis: Some(info.main),
             grow: info.grow,
@@ -640,6 +631,16 @@ impl LineItem {
         };
         self.grow_shrink_context.statistics(el);
         self.datas.push(el);
+
+        if line_start && info.line_start_margin_zero {
+            return;
+        }
+        if let Number::Defined(r) = info.margin_main_start {
+            self.grow_shrink_context.basis += r;
+            self.grow_shrink_context.no_grow_basis += r;
+        } else {
+            self.grow_shrink_context.margin_auto += 1;
+        }
     }
 
     pub fn statistics(
@@ -697,7 +698,7 @@ impl LineItem {
             }
 
             index += 1;
-            println!("data: {:?}", (cross, el,));
+            // println!("data: {:?}", (el));
         }
     }
 }
@@ -747,7 +748,7 @@ impl MultiLineInfo {
                     gap_cross_start = 0.0;
                 }
             }
-            println!("======== gap_cross_start: {}", gap_cross_start);
+            // println!("======== gap_cross_start: {}", gap_cross_start);
             i.statistics(main, self.column_gap, gap_cross_start, self.row_gap * 0.5);
             self.cross += i.cross;
             index += 1;

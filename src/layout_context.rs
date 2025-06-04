@@ -132,6 +132,7 @@ where
             while *start < end {
                 let (info, temp_type) = unsafe { temp.rel_vec.get_unchecked_mut(*start) };
                 let item = &items[index];
+                info.cross = item.cross;
                 *start += 1;
                 index += 1;
                 let main = calc(info, split, &mut pos, item);

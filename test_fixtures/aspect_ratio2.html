@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <script src="../scripts/gentest/test_helper.js"></script>
+  <link rel="stylesheet" type="text/css" href="../scripts/gentest/test_base_style.css">
+  <title>
+    Test description
+  </title>
+</head>
+
+<body>
+  <div id="test-root" style = "flex-wrap: wrap; width: 250px; display: flex;">
+    <div id="test-root2" class="item auto" style="aspect-ratio: 16 / 9; flex-basis:200px; ">auto</div>
+  </div>
+</body>
+<script>
+  let r = document.getElementById("test-root2");
+  let a = r.style;
+  let c = a;
+</script>
+</html>
