@@ -411,8 +411,13 @@ impl<K: Null + Clone> Cache<K> {
         while char_index < len {
             let char_node = &mut text[char_index];
 
-			// 如果是单词容器节点， 并且单词字符可以换行， 则需要将单词的每字符进行布局， 单词容器的位置设置为0(容器不再继续参与布局)
-			if char_node.ch == char::from(0) && is_overflow_wrap {
+			let count_w = if let Dimension::Points(r) = char_node.size.width {
+                r
+            } else {
+                0.0
+            };
+			// 如果是单词容器节点， 并且单词字符可以换行活单个单词的长度大于总宽度， 则需要将单词的每字符进行布局， 单词容器的位置设置为0(容器不再继续参与布局)
+			if char_node.ch == char::from(0) && (is_overflow_wrap || count_w + EPSILON >= self.main_line) { {
 				char_node.pos = Rect { left: 0.0, right: char_node.pos.right - char_node.pos.left, top: 0.0, bottom: char_node.pos.bottom - char_node.pos.top };
 				char_index += 1;
 				continue;
